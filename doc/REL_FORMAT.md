@@ -179,10 +179,16 @@ Verwendet für Location Counter ($) Referenzen:
 
 ## Praktische Implementierungs-Hinweise
 
-### 1. Bit-basierte I/O erforderlich
+### 1. Bit-basierte I/O erforderlich ✅ VERIFIZIERT
 - **NICHT** byteweise schreiben!
 - Bit-Puffer implementieren (z.B. BitWriter-Klasse)
-- Bits links nach rechts in Byte packen (MSB first oder LSB first? - muss getestet werden)
+- **Bit-Reihenfolge: MSB-FIRST** (verifiziert durch Analyse von bios.rel)
+  * Bits werden von links nach rechts in Byte gepackt
+  * Erstes Bit → Position 7 (MSB)
+  * Zweites Bit → Position 6
+  * ...
+  * Achtes Bit → Position 0 (LSB)
+  * Byte-Layout: `[b7 b6 b5 b4 b3 b2 b1 b0]`
 
 ### 2. Byte-Grenze bei Modul-Ende
 - Nach "End Module" auf nächste Byte-Grenze auffüllen
@@ -228,10 +234,36 @@ Offset  Hex     Binary          Interpretation
 - CP/M Relocatable Object Module Format Specification
 - Intel Relocatable Object Module Format (ähnlich, aber unterschiedlich)
 
+## Verifizierte Implementierungs-Details ✅
+
+### 1. Bit-Reihenfolge: ✅ GEKLÄRT
+**Analyse von bios.rel (Bytes 0x85 0x90 0x92...):**
+```
+Bitstream: 1 00 0010 110 01000010 01001001 01001111 01010011 01001101 01001111
+           │ │  │    │   └─────────────────────────────────────────────────┘
+           │ │  │    │                 "BIOSMO" (6 chars)
+           │ │  │    └─ Name Length = 6 (0b110)
+           │ │  └─ Control Code = 2 (Program Name)
+           │ └─ Special Link Item (00)
+           └─ Relocatable (1)
+```
+
+**Ergebnis**: MSB-FIRST Bit-Packing
+- Bit 0 des Bitstreams → Bit 7 des ersten Bytes (MSB)
+- Bit 1 des Bitstreams → Bit 6 des ersten Bytes
+- ...
+- Bit 7 des Bitstreams → Bit 0 des ersten Bytes (LSB)
+- Bit 8 des Bitstreams → Bit 7 des zweiten Bytes (MSB)
+
+### 2. Symbol-Länge: ✅ GEKLÄRT
+**Verifiziert**: Nur erste **6 Zeichen** sind signifikant
+- `BIOSMOD` wird zu `BIOSMO` (7→6 Zeichen)
+- Name-Length-Feld im Bitstream: 0b110 = 6
+
 ## Offene Fragen für Implementierung
 
-1. **Bit-Reihenfolge**: MSB first oder LSB first beim Bit-Packing?
-2. **Padding**: Welche Bits für Byte-Alignment nach End Module?
-3. **String-Encoding**: ASCII 7-Bit oder 8-Bit? High-Bit gesetzt?
+1. ~~**Bit-Reihenfolge**~~: ✅ GEKLÄRT - MSB first
+2. **Padding**: Welche Bits für Byte-Alignment nach End Module? (0 oder 1?)
+3. **String-Encoding**: ASCII 7-Bit oder 8-Bit? High-Bit gesetzt? (vermutlich 8-Bit normal)
 4. **Chain-Offset**: Absolut oder relativ zum Segment-Start?
 5. **Common-Overlap**: Wie werden überlappende Common-Bereiche behandelt?

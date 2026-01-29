@@ -6,6 +6,8 @@
 
 ### Format und Syntax
 - ✅ **.REL-Format**: Vollständig dokumentiert (Bitstream-basiert!)
+- ✅ **Bit-Packing-Reihenfolge**: MSB-FIRST (verifiziert durch bios.rel-Analyse)
+- ✅ **Symbol-Länge**: 6 Zeichen signifikant (verifiziert: BIOSMOD→BIOSMO)
 - ✅ **M80-Syntax**: Vollständig aus MACRO80.txt extrahiert
 - ✅ **Operator-Präzedenz**: Dokumentiert und spezifiziert
 - ✅ **Mode-System**: ASEG/CSEG/DSEG/COMMON Regeln klar
@@ -17,15 +19,51 @@
 
 ### 1. .REL Bitstream-Details
 
-#### Frage 1.1: Bit-Reihenfolge beim Packing
+#### Frage 1.1: Bit-Reihenfolge beim Packing ✅ GELÖST
 **Problem**: In welcher Reihenfolge werden Bits in Bytes gepackt?
 ```
-Option A (MSB first): Bit 0 → Bit 7 → Bit 6 → ... → Bit 1
-Option B (LSB first): Bit 0 → Bit 1 → Bit 2 → ... → Bit 7
+Option A (MSB first): Bit 0 → Bit 7 → Bit 6 → ... → Bit 1  ✓ KORREKT
+Option B (LSB first): Bit 0 → Bit 1 → Bit 2 → ... → Bit 7  ✗
 ```
-**Lösung**: Analyse von bios.rel Byte 0 erforderlich
-**Priorität**: KRITISCH - Fundamentaler Algorithmus
-**Test**: Minimales Programm (NOP, END) assemblieren und mit M80 vergleichen
+**Lösung**: Durch Analyse von bios.rel verifiziert
+**Analyse-Ergebnis**:
+```
+Bytes:     0x85        0x90        0x92
+Binär:     10000101    10010000    10010010
+Bitstream: 1 00 0010 110 01000010 01001001 ...
+Decoded:   │ │  │    │   'B'      'I'
+           │ │  │    └─ Length=6
+           │ │  └─ Code=2 (Program Name)
+           │ └─ Type=00 (Special)
+           └─ Control=1 (Relocatable)
+
+Module Name: "BIOSMO" (erste 6 Zeichen von "BIOSMOD")
+```
+**Ergebnis**: **MSB-FIRST Bit-Packing**
+- Bits werden von links nach rechts gelesen
+- Erstes Bit im Bitstream → MSB (Bit 7) des ersten Bytes
+- Achtes Bit im Bitstream → LSB (Bit 0) des ersten Bytes
+- Neuntes Bit im Bitstream → MSB (Bit 7) des zweiten Bytes
+
+**Implementierung**:
+```cpp
+class BitWriter {
+    uint8_t current_byte = 0;
+    int bit_position = 7;  // Start at MSB
+    
+    void writeBit(bool bit) {
+        if (bit) {
+            current_byte |= (1 << bit_position);
+        }
+        bit_position--;
+        if (bit_position < 0) {
+            output.write(current_byte);
+            current_byte = 0;
+            bit_position = 7;
+        }
+    }
+};
+```
 
 #### Frage 1.2: Byte-Alignment nach End Module
 **Problem**: Welche Bits für Padding zur Byte-Grenze?
