@@ -62,4 +62,12 @@ add_executable(test_db_dw
 target_link_libraries(test_db_dw PRIVATE z80common)
 target_include_directories(test_db_dw PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
+add_executable(test_bit_writer
+    test_bit_writer.cpp
+    ../src/assembler/bit_writer.cpp
+)
+
+target_link_libraries(test_bit_writer PRIVATE z80common)
+target_include_directories(test_bit_writer PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
 # Integration tests (later with Python)
