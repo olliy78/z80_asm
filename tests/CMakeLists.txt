@@ -23,6 +23,7 @@ add_executable(test_parser
     ../src/assembler/lexer.cpp
     ../src/assembler/z80_instructions.cpp
     ../src/assembler/symbol_table.cpp
+    ../src/assembler/expression.cpp
 )
 
 target_link_libraries(test_parser PRIVATE z80common)
@@ -34,6 +35,7 @@ add_executable(test_parser_advanced
     ../src/assembler/lexer.cpp
     ../src/assembler/z80_instructions.cpp
     ../src/assembler/symbol_table.cpp
+    ../src/assembler/expression.cpp
 )
 
 target_link_libraries(test_parser_advanced PRIVATE z80common)
@@ -47,5 +49,17 @@ add_executable(test_expression
 
 target_link_libraries(test_expression PRIVATE z80common)
 target_include_directories(test_expression PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_executable(test_db_dw
+    test_db_dw.cpp
+    ../src/assembler/parser.cpp
+    ../src/assembler/lexer.cpp
+    ../src/assembler/z80_instructions.cpp
+    ../src/assembler/symbol_table.cpp
+    ../src/assembler/expression.cpp
+)
+
+target_link_libraries(test_db_dw PRIVATE z80common)
+target_include_directories(test_db_dw PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 # Integration tests (later with Python)

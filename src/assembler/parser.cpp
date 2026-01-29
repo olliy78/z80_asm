@@ -4,6 +4,7 @@
  */
 
 #include "parser.h"
+#include "expression.h"
 #include "common/utils.h"
 #include <fstream>
 #include <sstream>
@@ -157,36 +158,16 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
                 
                 // Continue processing directive/instruction
                 if (upperMnemonic == "DB") {
-                    // Count bytes
-                    int count = 0;
-                    token = lexer.nextToken();
-                    while (token.type != TokenType::EndOfLine && token.type != TokenType::EndOfFile) {
-                        if (token.type == TokenType::Number) {
-                            count++;
-                        } else if (token.type == TokenType::String) {
-                            count += token.text.length();
-                        }
-                        token = lexer.nextToken();
-                        if (token.type == TokenType::Comma) {
-                            token = lexer.nextToken();
-                        }
-                    }
-                    locationCounter_ += count;
+                    // Parse operands for later use in pass 2
+                    parsedLine.operandString = parseOperands(lexer, parsedLine.operands);
+                    // Count bytes - each operand becomes a byte
+                    locationCounter_ += parsedLine.operands.size();
                 }
                 else if (upperMnemonic == "DW") {
-                    // Count words
-                    int count = 0;
-                    token = lexer.nextToken();
-                    while (token.type != TokenType::EndOfLine && token.type != TokenType::EndOfFile) {
-                        if (token.type == TokenType::Number || token.type == TokenType::Identifier) {
-                            count++;
-                        }
-                        token = lexer.nextToken();
-                        if (token.type == TokenType::Comma) {
-                            token = lexer.nextToken();
-                        }
-                    }
-                    locationCounter_ += count * 2;
+                    // Parse operands for later use in pass 2
+                    parsedLine.operandString = parseOperands(lexer, parsedLine.operands);
+                    // Count words - each operand becomes 2 bytes
+                    locationCounter_ += parsedLine.operands.size() * 2;
                 }
                 else if (upperMnemonic == "DS") {
                     // Reserve space
@@ -293,17 +274,55 @@ bool Parser::pass2(const std::vector<std::string>& sourceLines, const std::strin
 }
 
 bool Parser::generateDB(ParsedLine& line, const std::string& filename) {
-    // Parse and generate bytes for DB directive
-    // For now, we need to re-parse the source line to get operands
-    // TODO: Store operands in ParsedLine during pass 1
+    // DB generates bytes from comma-separated expressions
+    // Operands are already parsed in line.operands
     
-    // Simple stub for now - just mark as processed
+    ExpressionEvaluator eval(symbolTable_, locationCounter_, currentSegment_);
+    
+    for (const std::string& operand : line.operands) {
+        ExpressionResult result = eval.evaluate(operand);
+        
+        if (!result.valid) {
+            AssemblyError err;
+            err.level = ErrorLevel::Error;
+            err.message = "Error evaluating DB expression '" + operand + "': " + result.errorMessage;
+            err.filename = filename;
+            err.line = line.lineNumber;
+            errors_.push_back(err);
+            return false;
+        }
+        
+        // Store byte value (truncate to 8 bits)
+        line.code.push_back(static_cast<Byte>(result.value & 0xFF));
+    }
+    
     return true;
 }
 
 bool Parser::generateDW(ParsedLine& line, const std::string& filename) {
-    // Parse and generate words for DW directive
-    // TODO: Implement word generation
+    // DW generates 16-bit words from comma-separated expressions
+    // Z80 uses little-endian (LSB first)
+    
+    ExpressionEvaluator eval(symbolTable_, locationCounter_, currentSegment_);
+    
+    for (const std::string& operand : line.operands) {
+        ExpressionResult result = eval.evaluate(operand);
+        
+        if (!result.valid) {
+            AssemblyError err;
+            err.level = ErrorLevel::Error;
+            err.message = "Error evaluating DW expression '" + operand + "': " + result.errorMessage;
+            err.filename = filename;
+            err.line = line.lineNumber;
+            errors_.push_back(err);
+            return false;
+        }
+        
+        // Store word value in little-endian (LSB, MSB)
+        line.code.push_back(static_cast<Byte>(result.value & 0xFF));        // LSB
+        line.code.push_back(static_cast<Byte>((result.value >> 8) & 0xFF)); // MSB
+    }
+    
     return true;
 }
 
@@ -316,9 +335,78 @@ bool Parser::generateInstruction(ParsedLine& line, const std::string& filename) 
             line.code.push_back(b);
         }
         
-        // TODO: Add operand bytes if needed (need to evaluate expressions)
-        for (int i = 0; i < info->operandBytes; i++) {
-            line.code.push_back(0x00);  // Placeholder
+        // Add operand bytes if needed (evaluate expressions)
+        if (info->operandBytes > 0) {
+            // Find the operand that contains an immediate value or address
+            std::string valueOperand;
+            
+            for (const std::string& op : line.operands) {
+                std::string upper = op;
+                for (char& c : upper) c = std::toupper(c);
+                
+                // Skip register operands
+                if (isRegisterOperand(upper)) continue;
+                
+                // Handle indirect addressing - extract the expression inside ()
+                if (!op.empty() && op[0] == '(' && op[op.length()-1] == ')') {
+                    // Extract expression between parentheses
+                    valueOperand = op.substr(1, op.length() - 2);
+                    break;
+                }
+                
+                // Check for indexed addressing (IX+d) or (IY+d)
+                if (upper.find("(IX+") == 0 || upper.find("(IX-") == 0 ||
+                    upper.find("(IY+") == 0 || upper.find("(IY-") == 0) {
+                    // Extract displacement - everything after IX or IY until )
+                    size_t startPos = upper.find('+');
+                    if (startPos == std::string::npos) startPos = upper.find('-');
+                    if (startPos != std::string::npos) {
+                        size_t endPos = op.find(')');
+                        valueOperand = op.substr(startPos, endPos - startPos);
+                        break;
+                    }
+                }
+                
+                // Otherwise it's a direct value/address
+                valueOperand = op;
+                break;
+            }
+            
+            // Evaluate the operand expression
+            if (!valueOperand.empty()) {
+                ExpressionEvaluator eval(symbolTable_, locationCounter_, currentSegment_);
+                ExpressionResult result = eval.evaluate(valueOperand);
+                
+                if (!result.valid) {
+                    AssemblyError err;
+                    err.level = ErrorLevel::Error;
+                    err.message = "Error evaluating operand '" + valueOperand + "': " + result.errorMessage;
+                    err.filename = filename;
+                    err.line = line.lineNumber;
+                    errors_.push_back(err);
+                    return false;
+                }
+                
+                // Store operand bytes
+                if (info->operandBytes == 1) {
+                    // 8-bit immediate or displacement
+                    line.code.push_back(static_cast<Byte>(result.value & 0xFF));
+                } else if (info->operandBytes == 2) {
+                    // 16-bit address in little-endian
+                    line.code.push_back(static_cast<Byte>(result.value & 0xFF));
+                    line.code.push_back(static_cast<Byte>((result.value >> 8) & 0xFF));
+                }
+                
+                // TODO: Track relocatable references for REL output
+                if (result.type != ExpressionType::Absolute) {
+                    // This address needs relocation - store for later REL generation
+                }
+            } else {
+                // No operand found but instruction expects bytes - use zeros
+                for (int i = 0; i < info->operandBytes; i++) {
+                    line.code.push_back(0x00);
+                }
+            }
         }
         
         return true;
