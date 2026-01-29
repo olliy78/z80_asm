@@ -13,19 +13,162 @@
 
 #pragma once
 
+#include <string>
+#include <vector>
+#include <memory>
+#include "lexer.h"
+#include "symbol_table.h"
+#include "z80_instructions.h"
+#include "errors.h"
+
 namespace z80 {
+
+/**
+ * @struct ParsedLine
+ * @brief Represents a parsed assembly line
+ */
+struct ParsedLine {
+    std::string label;                  ///< Optional label (empty if none)
+    std::string mnemonic;               ///< Instruction or directive mnemonic
+    std::vector<std::string> operands;  ///< Operands (expressions)
+    std::string operandString;          ///< Full operand string for instruction lookup
+    std::string comment;                ///< Comment text
+    int lineNumber;                     ///< Source line number
+    Address address;                    ///< Address assigned in pass 1
+    std::vector<Byte> code;             ///< Generated machine code (pass 2)
+    SegmentType segment;                ///< Current segment type
+};
 
 /**
  * @class Parser
  * @brief Syntax analyzer and code generator for Z80 assembly
  * 
- * @todo Implement parsing logic
+ * Implements two-pass assembly:
+ * - Pass 1: Collects symbols and calculates addresses
+ * - Pass 2: Generates machine code using resolved symbols
  */
 class Parser {
 public:
+    /**
+     * @brief Construct a new Parser
+     */
     Parser();
     
-    // TODO: Implement parser
+    /**
+     * @brief Parse and assemble a source file
+     * 
+     * @param filename Source file path
+     * @return true if assembly succeeded
+     * @return false if errors occurred
+     */
+    bool assemble(const std::string& filename);
+    
+    /**
+     * @brief Get assembled lines (after pass 2)
+     * @return const std::vector<ParsedLine>& Parsed lines with code
+     */
+    const std::vector<ParsedLine>& getLines() const { return lines_; }
+    
+    /**
+     * @brief Get symbol table
+     * @return const SymbolTable& Symbol table
+     */
+    const SymbolTable& getSymbolTable() const;
+    
+    /**
+     * @brief Get errors encountered during assembly
+     * @return const std::vector<AssemblyError>& List of errors
+     */
+    const std::vector<AssemblyError>& getErrors() const;
+    
+    /**
+     * @brief Check if assembly had errors
+     * @return true if errors occurred
+     */
+    bool hasErrors() const { return !errors_.empty(); }
+    
+private:
+    /**
+     * @brief Perform pass 1: build symbol table
+     * @param sourceLines Raw source code lines
+     * @param filename Name of source file
+     * @return true if pass 1 succeeded
+     */
+    bool pass1(const std::vector<std::string>& sourceLines, const std::string& filename);
+    
+    /**
+     * @brief Perform pass 2: generate code
+     * @param sourceLines Raw source code lines
+     * @param filename Name of source file
+     * @return true if pass 2 succeeded
+     */
+    bool pass2(const std::vector<std::string>& sourceLines, const std::string& filename);
+    
+    /**
+     * @brief Generate code for DB directive
+     * @param line Parsed line
+     * @param filename Source filename
+     * @return true if successful
+     */
+    bool generateDB(ParsedLine& line, const std::string& filename);
+    
+    /**
+     * @brief Generate code for DW directive
+     * @param line Parsed line
+     * @param filename Source filename
+     * @return true if successful
+     */
+    bool generateDW(ParsedLine& line, const std::string& filename);
+    
+    /**
+     * @brief Generate code for instruction
+     * @param line Parsed line
+     * @param filename Source filename
+     * @return true if successful
+     */
+    bool generateInstruction(ParsedLine& line, const std::string& filename);
+    
+    /**
+     * @brief Parse operands from token stream
+     * @param lexer Lexer positioned after mnemonic
+     * @param operands Output vector of operand strings
+     * @return Combined operand string for logging
+     */
+    std::string parseOperands(Lexer& lexer, std::vector<std::string>& operands);
+    
+    /**
+     * @brief Find best matching instruction variant for given operands
+     * @param mnemonic Instruction mnemonic
+     * @param operands Parsed operand list
+     * @return Pointer to instruction info, or nullptr
+     */
+    const InstructionInfo* findInstructionVariant(const std::string& mnemonic,
+                                                   const std::vector<std::string>& operands);
+    
+    /**
+     * @brief Convert operand to addressing pattern
+     * @param operand Single operand string
+     * @return Pattern like "A", "NN", "(HL)", "(IX+D)", etc.
+     */
+    std::string operandToPattern(const std::string& operand);
+    
+    /**
+     * @brief Check if operand is a register
+     * @param operand Operand string
+     * @return true if it's a register name
+     */
+    bool isRegisterOperand(const std::string& operand);
+    
+    SymbolTable symbolTable_;           ///< Symbol table
+    Z80Instructions instructions_;      ///< Z80 instruction set
+    std::vector<ParsedLine> lines_;     ///< Parsed lines
+    std::vector<AssemblyError> errors_; ///< Assembly errors
+    
+    Address locationCounter_;           ///< Current address (location counter)
+    SegmentType currentSegment_;        ///< Current segment (CSEG default)
+    Address csegOrigin_;                ///< CSEG origin
+    Address dsegOrigin_;                ///< DSEG origin
+    Address asegOrigin_;                ///< ASEG origin
 };
 
 } // namespace z80

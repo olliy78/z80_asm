@@ -17,4 +17,26 @@ add_executable(test_instructions
 target_link_libraries(test_instructions PRIVATE z80common)
 target_include_directories(test_instructions PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
+add_executable(test_parser
+    test_parser.cpp
+    ../src/assembler/parser.cpp
+    ../src/assembler/lexer.cpp
+    ../src/assembler/z80_instructions.cpp
+    ../src/assembler/symbol_table.cpp
+)
+
+target_link_libraries(test_parser PRIVATE z80common)
+target_include_directories(test_parser PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_executable(test_parser_advanced
+    test_parser_advanced.cpp
+    ../src/assembler/parser.cpp
+    ../src/assembler/lexer.cpp
+    ../src/assembler/z80_instructions.cpp
+    ../src/assembler/symbol_table.cpp
+)
+
+target_link_libraries(test_parser_advanced PRIVATE z80common)
+target_include_directories(test_parser_advanced PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
 # Integration tests (later with Python)

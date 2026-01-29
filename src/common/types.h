@@ -123,6 +123,17 @@ enum class SymbolType {
 };
 
 /**
+ * @enum SegmentType
+ * @brief Types of program segments
+ */
+enum class SegmentType {
+    ASEG,           // Absolute segment (fixed address)
+    CSEG,           // Code segment (program relative)
+    DSEG,           // Data segment (data relative)
+    COMMON,         // Common block (shared memory)
+};
+
+/**
  * @struct Symbol
  * @brief Represents a symbol table entry
  * 
@@ -133,25 +144,16 @@ struct Symbol {
     std::string name;      ///< Name of the symbol
     SymbolType type;       ///< Type of the symbol
     int64_t value;         ///< Value/address of the symbol
+    SegmentType segment;   ///< Segment where symbol is defined
     bool defined;          ///< True if symbol has been defined
     bool isPublic;         ///< True if symbol is exported (PUBLIC)
     bool isExternal;       ///< True if symbol is imported (EXTERNAL)
     bool isRelocatable;    ///< True if symbol address is relocatable
     int definedLine;       ///< Line number where symbol was defined
     
-    Symbol() : type(SymbolType::Label), value(0), defined(false),
-               isPublic(false), isExternal(false), isRelocatable(false),
-               definedLine(0) {}
-};
-
-/**
- * @enum SegmentType
- * @brief Types of program segments
- */
-enum class SegmentType {
-    Absolute,       // ASEG
-    Code,           // CSEG
-    Data,           // DSEG
+    Symbol() : type(SymbolType::Label), value(0), segment(SegmentType::CSEG),
+               defined(false), isPublic(false), isExternal(false), 
+               isRelocatable(false), definedLine(0) {}
 };
 
 /**
