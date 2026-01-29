@@ -1,3 +1,11 @@
+/**
+ * @file symbol_table.cpp
+ * @brief Implementation of symbol table management
+ * 
+ * @author Z80 Assembler Project
+ * @date 2026
+ */
+
 #include "symbol_table.h"
 
 namespace z80 {

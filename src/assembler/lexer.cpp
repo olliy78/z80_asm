@@ -1,3 +1,11 @@
+/**
+ * @file lexer.cpp
+ * @brief Implementation of the lexical analyzer
+ * 
+ * @author Z80 Assembler Project
+ * @date 2026
+ */
+
 #include "lexer.h"
 #include "common/utils.h"
 #include <cctype>

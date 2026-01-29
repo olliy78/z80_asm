@@ -1,3 +1,11 @@
+/**
+ * @file utils.cpp
+ * @brief Implementation of utility functions
+ * 
+ * @author Z80 Assembler Project
+ * @date 2026
+ */
+
 #include "utils.h"
 #include <algorithm>
 #include <cctype>

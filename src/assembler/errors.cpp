@@ -1,3 +1,11 @@
+/**
+ * @file errors.cpp
+ * @brief Implementation of error handling
+ * 
+ * @author Z80 Assembler Project
+ * @date 2026
+ */
+
 #include "errors.h"
 #include <iostream>
 

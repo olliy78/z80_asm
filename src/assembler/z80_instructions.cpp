@@ -1,3 +1,11 @@
+/**
+ * @file z80_instructions.cpp
+ * @brief Implementation of Z80 instruction set
+ * 
+ * @author Z80 Assembler Project
+ * @date 2026
+ */
+
 #include "z80_instructions.h"
 
 namespace z80 {

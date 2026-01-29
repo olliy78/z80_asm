@@ -1,3 +1,15 @@
+/**
+ * @file main.cpp
+ * @brief Main entry point for the M80-compatible Z80 assembler
+ * 
+ * This program assembles Z80 assembly language source files (.mac)
+ * into Microsoft Relocatable Object format (.rel) with optional
+ * listing output (.prn).
+ * 
+ * @author Z80 Assembler Project
+ * @date 2026
+ */
+
 #include <iostream>
 #include <string>
 #include <fstream>

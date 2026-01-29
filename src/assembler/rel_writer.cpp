@@ -1,3 +1,11 @@
+/**
+ * @file rel_writer.cpp
+ * @brief Implementation of .REL format writer
+ * 
+ * @author Z80 Assembler Project
+ * @date 2026
+ */
+
 #include "rel_writer.h"
 
 namespace z80 {

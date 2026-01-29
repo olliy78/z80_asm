@@ -1,3 +1,11 @@
+/**
+ * @file listing.cpp
+ * @brief Implementation of listing file generator
+ * 
+ * @author Z80 Assembler Project
+ * @date 2026
+ */
+
 #include "listing.h"
 
 namespace z80 {
