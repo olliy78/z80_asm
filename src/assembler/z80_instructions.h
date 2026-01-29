@@ -16,6 +16,19 @@
 namespace z80 {
 
 /**
+ * @struct InstructionInfo
+ * @brief Information about a single Z80 instruction variant
+ */
+struct InstructionInfo {
+    std::string mnemonic;        ///< Instruction mnemonic (e.g., "LD", "ADD")
+    AddressingMode mode;         ///< Addressing mode
+    std::vector<Byte> opcodes;   ///< Opcode bytes (may include prefix bytes)
+    int operandBytes;            ///< Number of operand bytes following opcode
+    int cycles;                  ///< Clock cycles (base timing)
+    std::string operandPattern;  ///< Pattern for operand matching (e.g., "A,n", "HL,(nn)")
+};
+
+/**
  * @class Z80Instructions
  * @brief Complete Z80 instruction set table
  * 
@@ -25,14 +38,67 @@ namespace z80 {
  * - Z80-specific extensions
  * - Indexed addressing with IX/IY
  * - Bit manipulation instructions
- * 
- * @todo Implement instruction table
  */
 class Z80Instructions {
 public:
+    /** @brief Initialize the instruction table */
     Z80Instructions();
     
-    // TODO: Complete Z80 instruction table
+    /**
+     * @brief Find instruction matching mnemonic and operands
+     * @param mnemonic Instruction mnemonic (e.g., "LD")
+     * @param operands Operand string (e.g., "A,B")
+     * @return Pointer to instruction info, or nullptr if not found
+     */
+    const InstructionInfo* findInstruction(const std::string& mnemonic, 
+                                          const std::string& operands) const;
+    
+    /**
+     * @brief Check if a string is a valid register name
+     * @param name String to check
+     * @return true if it's a register name
+     */
+    bool isRegister(const std::string& name) const;
+    
+    /**
+     * @brief Check if a string is a valid mnemonic
+     * @param name String to check
+     * @return true if it's a valid mnemonic
+     */
+    bool isMnemonic(const std::string& name) const;
+    
+private:
+    /** @brief Initialize all instruction entries */
+    void initializeInstructions();
+    
+    /** @brief Add 8-bit load instructions */
+    void addLoad8BitInstructions();
+    
+    /** @brief Add 16-bit load instructions */
+    void addLoad16BitInstructions();
+    
+    /** @brief Add arithmetic instructions */
+    void addArithmeticInstructions();
+    
+    /** @brief Add logical instructions */
+    void addLogicalInstructions();
+    
+    /** @brief Add rotate/shift instructions */
+    void addRotateShiftInstructions();
+    
+    /** @brief Add bit manipulation instructions */
+    void addBitInstructions();
+    
+    /** @brief Add jump/call/return instructions */
+    void addJumpCallReturnInstructions();
+    
+    /** @brief Add I/O instructions */
+    void addIOInstructions();
+    
+    /** @brief Add miscellaneous instructions */
+    void addMiscInstructions();
+    
+    std::vector<InstructionInfo> instructions_;  ///< Complete instruction table
 };
 
 } // namespace z80
