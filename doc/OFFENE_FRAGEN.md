@@ -1,6 +1,6 @@
 # Offene Fragen und Klärungsbedarf
 
-*Stand: Januar 2026 - Nach Analyse der Original-Dokumentation*
+*Stand: Januar 2026 - Nach Implementierung Phase 1*
 
 ## ✅ Geklärte Aspekte
 
@@ -14,6 +14,15 @@
 - ✅ **Fehler-Codes**: Alle 10 Codes dokumentiert
 - ✅ **Zahlenformate**: D, H, 0x, O, Q, B alle spezifiziert
 - ✅ **Symbol-Regeln**: 6 Zeichen signifikant, Case-Handling
+
+### Implementiert (Phase 1)
+- ✅ **Lexer**: Token-basiertes Parsen mit allen Zahlenformaten
+- ✅ **Parser**: Zwei-Pass Assembly mit strukturierter Operanden-Analyse
+- ✅ **Expression Evaluator**: Recursive Descent Parser mit M80-Operator-Präzedenz
+- ✅ **Symbol Table**: Vollständig mit Relocatable/Absolute/External Support
+- ✅ **DB/DW Direktiven**: Code-Generierung mit Expression-Evaluation
+- ✅ **Instruction Encoding**: Opcode-Bytes + evaluierte Operanden-Bytes
+- ✅ **Tests**: Lexer, Parser, Expression, DB/DW - alle bestanden
 
 ## ❓ Kritische Implementierungs-Fragen
 
@@ -319,24 +328,33 @@ VAR2:   DS 2
 
 ## 🎯 Nächste Schritte
 
-### Sofort (Phase 1 Vorbereitung)
-1. ✅ REL_FORMAT.md aktualisieren (DONE)
-2. ✅ M80_SYNTAX.md erstellen (DONE)
-3. [ ] Minimales Test-Programm (Test 1) mit M80 assemblieren
-4. [ ] bios.rel Hex-Dump analysieren (erste 100 Bytes)
-5. [ ] BitStream-Reader/Writer-Klasse entwerfen
+### ✅ Abgeschlossen (Phase 1)
+1. ✅ REL_FORMAT.md aktualisiert
+2. ✅ M80_SYNTAX.md erstellt
+3. ✅ Lexer implementiert (alle Token-Typen, Zahlenformate)
+4. ✅ Parser implementiert (2-Pass, strukturierte Operanden)
+5. ✅ Expression Evaluator (recursive descent, M80-Präzedenz, Type-Tracking)
+6. ✅ DB/DW Code-Generierung funktionsfähig
+7. ✅ Instruction Encoding mit evaluierten Operanden
+8. ✅ Comprehensive Test-Suite (Lexer, Parser, Expression, DB/DW)
 
-### Kurzfristig (Phase 1)
-1. [ ] Parser-Grundgerüst (Statement-Struktur)
-2. [ ] Expression-Evaluator (ohne Relocation)
-3. [ ] Basis-Direktiven (ORG, EQU, DB, DW, END)
-4. [ ] Test 1 erfolgreich assemblieren
+### Sofort (Phase 1 Finalisierung)
+1. [ ] BitWriter-Klasse (MSB-first Bit-Packing)
+2. [ ] REL Writer (Special Link Items + Code/Data Items)
+3. [ ] Relocation Table Generation
+4. [ ] Test mit einfachem .REL Output
 
-### Mittelfristig (Phase 2-3)
-1. [ ] Mode-System implementieren
-2. [ ] .REL BitWriter mit Tests
-3. [ ] Makro-System (MACRO/ENDM, REPT)
-4. [ ] Test 2-4 erfolgreich assemblieren
+### Kurzfristig (Phase 2)
+1. [ ] Vollständige Z80 Instruction Table
+2. [ ] Test mit bios.mac (erste Teile)
+3. [ ] PUBLIC/EXTRN Handling
+4. [ ] Entry Point Symbols
+
+### Mittelfristig (Phase 3-4)
+1. [ ] Conditional Assembly (IF/ELSE/ENDIF)
+2. [ ] Makro-System (MACRO/ENDM, REPT)
+3. [ ] IRP/IRPC
+4. [ ] Vollständiges bios.mac Assembly
 
 ### Langfristig (Phase 4-5)
 1. [ ] bios.mac assemblieren (alle Features)

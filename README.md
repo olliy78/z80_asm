@@ -8,18 +8,51 @@ Entwicklung eines Assemblers, der exakt das gleiche binäre Ausgabeformat (.REL)
 
 ## Status
 
-🚧 **In Entwicklung - Phase 0: Setup** 🚧
+� **Phase 1: Core Assembly - Implementiert** 🚀
 
+### Abgeschlossen
 - [x] Projektstruktur erstellt
 - [x] CMake-Build-System konfiguriert
-- [x] Grundlegende Komponenten angelegt
-- [x] Lexer implementiert (Basis)
-- [ ] Parser implementieren
-- [ ] Z80-Instruction-Table
-- [ ] .REL Writer
-- [ ] .PRN Generator
-- [ ] Makro-System
-- [ ] Vollständige M80-Kompatibilität
+- [x] Lexer implementiert (vollständig)
+  - Token-basiertes Parsen
+  - Alle M80-Zahlenformate (D, H, 0x, O, Q, B)
+  - String-Literale
+  - Kommentare
+- [x] Parser implementiert
+  - Zwei-Pass Assembly (Symbol Table Pass + Code Generation Pass)
+  - Strukturierte Operanden-Analyse
+  - Pattern-Matching für Instructions
+  - Segment-Management (CSEG/DSEG/ASEG)
+- [x] Expression Evaluator
+  - Recursive Descent Parser
+  - M80-kompatible Operator-Präzedenz (8 Levels)
+  - Alle Operatoren: +, -, *, /, MOD, SHL, SHR, AND, OR, XOR, NOT, Relational
+  - Type-Tracking (Absolute/Relocatable/External)
+  - Symbol-Lookup und Location Counter ($)
+- [x] Code Generation
+  - DB/DW Direktiven mit Expression-Evaluation
+  - Instruction Encoding (Opcodes + Operanden-Bytes)
+  - Little-Endian 16-bit Werte
+- [x] Symbol Table
+  - Labels, EQU-Konstanten
+  - Relocatable/Absolute/External Symbole
+  - Segment-Zuordnung
+- [x] Test Suite
+  - Lexer Tests (alle Token-Typen)
+  - Parser Tests (Basic, Directives, Segments)
+  - Expression Tests (10 Testfälle, alle bestanden)
+  - DB/DW Tests (Code-Generierung validiert)
+
+### In Arbeit
+- [ ] BitWriter (MSB-first Bit-Packing für .REL)
+- [ ] .REL Writer (Special Link Items, Relocation Table)
+
+### Geplant
+- [ ] Vollständige Z80-Instruction-Table
+- [ ] .PRN Listing Generator
+- [ ] PUBLIC/EXTRN/ENTRY Handling
+- [ ] Makro-System (Phase 3)
+- [ ] bios.mac Assembly (Validation)
 
 ## Build-Anleitung
 
