@@ -70,4 +70,13 @@ add_executable(test_bit_writer
 target_link_libraries(test_bit_writer PRIVATE z80common)
 target_include_directories(test_bit_writer PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
+add_executable(test_rel_writer
+    test_rel_writer.cpp
+    ../src/assembler/rel_writer.cpp
+    ../src/assembler/bit_writer.cpp
+)
+
+target_link_libraries(test_rel_writer PRIVATE z80common)
+target_include_directories(test_rel_writer PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
 # Integration tests (later with Python)
