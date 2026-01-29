@@ -2,71 +2,236 @@
 
 ## Übersicht
 
-Das Microsoft .REL-Format wird von M80, RMAC und anderen CP/M-Assemblern verwendet. Es ist ein binäres Format für relocatable Object-Module, die vom Linker (L80, LINKMT) zu ausführbaren Programmen verlinkt werden.
+Das Microsoft .REL-Format wird von M80, RMAC und anderen CP/M-Assemblern verwendet. Es ist ein **Bitstream-Format** (nicht byte-orientiert!), das zur Minimierung der Dateigröße auf CP/M-Systemen entwickelt wurde. Die Module werden vom Linker (LINK-80, LINKMT) zu ausführbaren Programmen verlinkt.
 
-## Format-Struktur
+**KRITISCH**: Das Format ist BIT-basiert, nicht Byte-basiert! Dies ist entscheidend für 100% Byte-Kompatibilität.
 
-### Allgemein
+## Format-Struktur (Bit-Ebene)
 
-- Binärformat
-- Byte-orientiert
-- Record-basiert (ähnlich Intel HEX)
-- Jeder Record beginnt mit einem Type-Byte
+### Grundprinzip
 
-### Record-Typen
+Das .REL-Format ist ein **Bitstream**, der sequenziell interpretiert wird. Jedes Element beginnt mit einem oder mehreren Control-Bits, die den Typ des folgenden Elements bestimmen.
 
-Die folgenden Record-Typen sind bekannt:
+### Haupt-Bitstream-Struktur
 
-| Type | Hex  | Name                    | Beschreibung |
-|------|------|-------------------------|--------------|
-| 00   | 0x00 | Program Relative        | Relocatable Code/Data |
-| 02   | 0x02 | Data Relative           | Data-Segment |
-| 04   | 0x04 | Common Relative         | Common Block |
-| 06   | 0x06 | Program Name            | Modulname |
-| 08   | 0x08 | Request Library         | Library-Referenz |
-| 0A   | 0x0A | Extension Link          | Externe Referenz |
-| 0C   | 0x0C | External Plus Offset    | Externe Ref + Offset |
-| 0E   | 0x0E | Data Area Size          | Data-Segment-Größe |
-| 10   | 0x10 | Set Location Counter    | Setze LC |
-| 12   | 0x12 | Chain External          | Verkettete Externe |
-| 14   | 0x14 | Entry Symbol            | Public Symbol |
-| 16   | 0x16 | Program Size            | Code-Segment-Größe |
-| 18   | 0x18 | End of Module           | Modul-Ende |
+LINK-80 interpretiert den Bitstream wie folgt:
 
-### Detaillierte Beschreibung
-
-#### Byte-Encoding
-
-M80 verwendet ein spezielles Bit-Packing für effiziente Speicherung:
-- Bits werden in Bytes gepackt
-- Spezielle Escape-Sequenzen für Steuerinformationen
-
-#### Address Packing
-
-Adressen werden teilweise in komprimierter Form gespeichert.
-
-## Analyse von bios.rel
-
-TODO: Detaillierte Analyse der Beispieldatei
+#### 1. Erstes Bit = 0: Absolutes Byte
 
 ```
-Offset  Hex Dump                        Beschreibung
-------  ------------------------------  ---------------------------
-0x0000  85 90 92 53 d4 d3 53 e0 ...    [Zu analysieren]
+Bit-Muster: 0 BBBBBBBB
+            │ └─ 8 Bits: Absolutes Byte
+            └─ Control-Bit
 ```
+
+- Die nächsten 8 Bits werden direkt an die aktuelle Position des Location Counters geladen
+- Keine Relocation erforderlich
+
+#### 2. Erstes Bit = 1: Relokatibles Element
+
+```
+Bit-Muster: 1 TT ...
+            │ └─ 2 Bits: Typ-Code
+            └─ Control-Bit
+```
+
+Die 2 Typ-Bits bestimmen:
+
+| Typ | Binär | Beschreibung | Payload |
+|-----|-------|--------------|---------|
+| 0   | 00    | **Special Link Item** | 4-Bit Control-Feld + opt. Daten |
+| 1   | 01    | **Program Relative (CSEG)** | 16-Bit Adresse + Program-Segment-Offset |
+| 2   | 10    | **Data Relative (DSEG)** | 16-Bit Adresse + Data-Segment-Offset |
+| 3   | 11    | **Common Relative** | 16-Bit Adresse + Common-Block-Offset |
+
+## Special Link Items (Typ 100...)
+
+Special Items steuern Linker-Operationen und haben folgende Struktur:
+
+```
+Bit-Muster: 1 00 CCCC [VV AAAAAAAAAAAAAAAA] [LLL NNNN...]
+            │ │  │     │  │                  │   │
+            │ │  │     │  │                  │   └─ Name (8-Bit ASCII)
+            │ │  │     │  │                  └─ 3-Bit Name-Länge
+            │ │  │     │  └─ 16-Bit Adresse
+            │ │  │     └─ 2-Bit Adress-Typ (VV)
+            │ │  └─ 4-Bit Control-Code (CCCC)
+            │ └─ Special-Item-Marker (00)
+            └─ Control-Bit (1)
+```
+
+### Adress-Typ-Feld (2 Bits)
+
+| Bits | Typ | Beschreibung |
+|------|-----|--------------|
+| 00   | Absolute | Feste Adresse |
+| 01   | Program Relative | Relativ zu CSEG-Basis |
+| 10   | Data Relative | Relativ zu DSEG-Basis |
+| 11   | Common Relative | Relativ zu Common-Block-Basis |
+
+### Control-Codes (4 Bits)
+
+#### Items mit nur Name-Feld:
+
+| Code | Binär | Name | Beschreibung |
+|------|-------|------|--------------|
+| 0    | 0000  | **Entry Symbol** | Symbol ist in diesem Modul definiert (für Library-Search) |
+| 1    | 0001  | **Select Common** | Wählt Common-Block für nachfolgende Common-Relative Items |
+| 2    | 0010  | **Program Name** | Name des relokatiblen Moduls |
+| 3    | 0011  | **Request Library** | Fordert automatisches Laden von Library an (.REQUEST) |
+| 4    | 0100  | **Extension Link** | Reserviert für zukünftige Erweiterungen |
+
+#### Items mit Value + Name-Feld:
+
+| Code | Binär | Name | Beschreibung |
+|------|-------|------|--------------|
+| 5    | 0101  | **Define Common Size** | Legt Größe eines Common-Blocks fest |
+| 6    | 0110  | **Chain External** | Verkettete externe Referenzen (für EXTRN) |
+| 7    | 0111  | **Define Entry Point** | Definiert PUBLIC-Symbol mit Wert |
+
+| Code | Binär | Name | Beschreibung |
+|------|-------|------|--------------|
+| 8    | 1000  | *(Unused)* | Nicht verwendet |
+
+#### Items mit nur Value-Feld:
+
+| Code | Binär | Name | Beschreibung |
+|------|-------|------|--------------|
+| 9    | 1001  | **External Plus Offset** | Folgende 2 Bytes + Offset nach Chain-Processing |
+| 10   | 1010  | **Define Data Size** | Anzahl Bytes im Data-Segment |
+| 11   | 1011  | **Set Location Counter** | Setzt Location Counter auf Wert |
+| 12   | 1100  | **Chain Address** | Verkettete Adress-Referenzen (Location Counter) |
+| 13   | 1101  | **Define Program Size** | Anzahl Bytes im Program-Segment |
+| 14   | 1110  | **End Module** | Modul-Ende; Wert ≠ 0 = Start-Adresse |
+| 15   | 1111  | **End File** | Datei-Ende (keine weiteren Felder) |
+
+### Name-Feld-Kodierung
+
+```
+Bit-Muster: LLL CCCCCCCC CCCCCCCC ...
+            │   └─ 8-Bit ASCII pro Zeichen
+            └─ 3 Bits: Zeichenanzahl (0-7)
+```
+
+- Maximale Symbollänge: 7 Zeichen (3 Bits = 0-7)
+- **WICHTIG**: M80 verwendet nur die ersten 6 Zeichen als signifikant
+- Zeichen sind 8-Bit ASCII
+
+## Byte-Boundary
+
+- **End Module** (Control-Code 1110): Nächstes Modul beginnt an der nächsten **Byte-Grenze**
+- **End File** (Control-Code 1111): Markiert absolutes Ende, keine weitere Verarbeitung
+
+## Chain-Mechanismus
+
+### Chain External (Code 0110)
+
+Verwendet für externe Symbol-Referenzen:
+
+1. Value-Feld enthält Adresse des ersten Vorkommens
+2. An dieser Adresse steht die Adresse des nächsten Vorkommens (16-Bit)
+3. Kette endet mit absolutem 0-Wert
+4. Linker ersetzt alle Chain-Elemente durch die aufgelöste Symbol-Adresse
+
+Beispiel:
+```
+EXTRN FOO
+...
+LD HL,(FOO)    ; Adresse 0x0100: enthält Zeiger auf nächstes Vorkommen
+...
+LD A,(FOO)     ; Adresse 0x0150: enthält 0x0000 (Ende der Kette)
+```
+
+Chain im .REL:
+```
+Chain External: FOO, Value=0x0100 (Program Relative)
+  @ 0x0100: 0x0150 (Zeiger auf nächstes Vorkommen)
+  @ 0x0150: 0x0000 (Ende)
+```
+
+### Chain Address (Code 1100)
+
+Verwendet für Location Counter ($) Referenzen:
+- Analog zu Chain External
+- Wird mit aktuellem LC-Wert aufgelöst
+
+## Segment-Typen
+
+### ASEG (Absolute Segment)
+- Feste Adressen (nicht relokatibel)
+- Verwendet Bit-Muster: `0 BBBBBBBB` (absolutes Byte)
+
+### CSEG (Code Segment / Program Relative)
+- Standard-Segment für Code
+- Verwendet Bit-Muster: `1 01 AAAAAAAAAAAAAAAA` (16-Bit relokatibler Wert)
+- Linker addiert Program-Segment-Origin
+
+### DSEG (Data Segment / Data Relative)
+- Für RAM-Daten (getrennt von ROM-Code)
+- Verwendet Bit-Muster: `1 10 AAAAAAAAAAAAAAAA`
+- Linker addiert Data-Segment-Origin
+
+### COMMON (Common Blocks)
+- Shared Memory zwischen Modulen (ähnlich FORTRAN COMMON)
+- Verwendet Bit-Muster: `1 11 AAAAAAAAAAAAAAAA`
+- Location Counter startet immer bei 0 (Overlay-Semantik)
+- Linker verwendet größte definierte Größe
+
+## Praktische Implementierungs-Hinweise
+
+### 1. Bit-basierte I/O erforderlich
+- **NICHT** byteweise schreiben!
+- Bit-Puffer implementieren (z.B. BitWriter-Klasse)
+- Bits links nach rechts in Byte packen (MSB first oder LSB first? - muss getestet werden)
+
+### 2. Byte-Grenze bei Modul-Ende
+- Nach "End Module" auf nächste Byte-Grenze auffüllen
+- Padding-Bits könnten 0 oder 1 sein (muss verifiziert werden)
+
+### 3. Zwei-Pass-Assembly erforderlich
+- Pass 1: Alle Symbole und Größen sammeln
+- Pass 2: .REL-Datei mit vollständigen Chain-Informationen schreiben
+
+### 4. Symbol-Tabelle
+- Verfolge alle EXTRN-Symbole mit Verwendungslisten
+- Verfolge alle PUBLIC-Symbole mit Werten
+- Verfolge Common-Block-Größen
+
+### 5. Verifikation
+- Byte-by-Byte-Vergleich mit M80-Output
+- Disassembler für .REL-Format schreiben (Debug-Tool)
+
+## Analyse-Beispiel: bios.rel
+
+TODO: Hex-Dump und Bit-Stream-Dekodierung von bios.rel
+
+```
+Offset  Hex     Binary          Interpretation
+------  ------  --------------  ---------------------------
+0x0000  85      10000101        1 00 0010 1 = Special Item, Code 2, ...
+                                (Analyse folgt)
+```
+
+## Testfälle für Implementierung
+
+1. **Minimales Programm**: `ORG 0 / NOP / END`
+2. **CSEG mit Relocation**: Labels, JP/CALL
+3. **DSEG**: Daten-Definitionen
+4. **EXTRN/PUBLIC**: Modul-Verlinkung
+5. **COMMON**: Shared Memory
+6. **Vollständig**: bios.mac → bios.rel (byte-identisch)
 
 ## Referenzen
 
-- Microsoft M80 Assembler Manual
-- CP/M Programmer's Guide
-- Digital Research Relocatable Object Module Format
-- [TODO: Internet-Recherche durchführen]
+- Microsoft MACRO-80 Assembler Manual (siehe MACRO80.txt)
+- Digital Research LINK-80 Programmer's Utilities Guide
+- CP/M Relocatable Object Module Format Specification
+- Intel Relocatable Object Module Format (ähnlich, aber unterschiedlich)
 
-## TODO
+## Offene Fragen für Implementierung
 
-- [ ] Vollständige Format-Spezifikation recherchieren
-- [ ] bios.rel byte-weise analysieren
-- [ ] Record-Struktur dokumentieren
-- [ ] Relocation-Mechanismus verstehen
-- [ ] Symbol-Table-Format dokumentieren
-- [ ] Beispiele für jeden Record-Typ
+1. **Bit-Reihenfolge**: MSB first oder LSB first beim Bit-Packing?
+2. **Padding**: Welche Bits für Byte-Alignment nach End Module?
+3. **String-Encoding**: ASCII 7-Bit oder 8-Bit? High-Bit gesetzt?
+4. **Chain-Offset**: Absolut oder relativ zum Segment-Start?
+5. **Common-Overlap**: Wie werden überlappende Common-Bereiche behandelt?

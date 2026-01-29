@@ -148,33 +148,43 @@ z80_asm/
   - Recherche nach Microsoft Relocatable Object Format Specs
   - Vergleich mit anderen .rel Dateien
 
-### 2. M80-Syntax-Kompatibilität
-**Frage**: Welche M80-Features müssen unterstützt werden?
+### 2. M80-Syntax-Kompatibilität ✅ DOKUMENTIERT
+**Status**: Vollständig dokumentiert in M80_SYNTAX.md
 - **Basis-Features**:
-  - [x] Z80 Befehlssatz (vollständig)
-  - [x] Labels und Symbole
-  - [x] EQU/ASET
-  - [x] DB/DW/DS (Data Definition)
+  - [x] Z80 Befehlssatz (vollständig) ✅ Implementiert
+  - [x] Labels und Symbole (6 Zeichen signifikant)
+  - [x] EQU (einmalige Definition) / SET (variable Definition)
+  - [x] DB/DW/DS/DC (Data Definition)
   - [x] ORG (Origin)
-  - [x] END (End of Assembly)
+  - [x] END (End of Assembly, optionale Start-Adresse)
 - **Erweiterte Features**:
-  - [ ] MACRO/ENDM (Makro-Definition)
-  - [ ] REPT/ENDM (Wiederholungen)
-  - [ ] IF/ELSE/ENDIF (Bedingte Assemblierung)
-  - [ ] IRP/IRPC (Iteration über Parameter)
+  - [ ] MACRO/ENDM (Makro-Definition mit Parametern)
+  - [ ] REPT/ENDM (Count-based Wiederholungen)
+  - [ ] IF/ELSE/ENDIF (Bedingte Assemblierung, 255 Level)
+  - [ ] IRP/IRPC (Iteration über Parameter/Zeichen)
   - [ ] LOCAL (lokale Labels in Makros)
-  - [ ] INCLUDE/INCLUDE$ (Datei-Einbindung)
+  - [ ] EXITM (vorzeitiger Makro-Abbruch)
+  - [ ] INCLUDE/$INCLUDE/MACLIB (Datei-Einbindung, keine Verschachtelung!)
 - **Direktiven**:
   - [ ] .Z80 (Z80-Modus)
   - [ ] .8080 (8080-Modus)
   - [ ] .LIST/.XLIST (Listing-Steuerung)
-  - [ ] .TFCOND (True/False Conditional)
-  - [ ] .COND/.NOCOND
-  - [ ] NAME (Modulname)
-  - [ ] TITLE (Titel)
-  - [ ] ENTRY/PUBLIC (Export)
-  - [ ] EXTERNAL/EXTRN (Import)
+  - [ ] .CREF/.XCREF (Cross-Reference-Steuerung)
+  - [ ] .SFCOND/.LFCOND/.TFCOND (Conditional Listing)
+  - [ ] .LALL/.SALL/.XALL (Macro Expansion Listing)
+  - [ ] .COMMENT (Multi-Line Comments)
+  - [ ] .PRINTX (Console-Output während Assembly)
+  - [ ] .RADIX (Default Number Base 2-16)
+  - [ ] .PHASE/.DEPHASE (Relocation vor Loading)
+  - [ ] NAME (Modulname, 6 Zeichen)
+  - [ ] TITLE (Titel + Modulname)
+  - [ ] SUBTTL (Subtitle, 60 Zeichen)
+  - [ ] PAGE (Page Break, optional Size 10-255)
+  - [ ] ENTRY/PUBLIC (Export, `::` Kurzform)
+  - [ ] EXT/EXTRN (Import, `##` Kurzform)
   - [ ] ASEG/CSEG/DSEG (Segment-Typen)
+  - [ ] COMMON (Common Blocks, named/blank)
+  - [ ] .REQUEST (Library Search)
 
 ### 3. Zwei-Pass-Assemblierung
 **Frage**: Wie handhaben wir Forward-References?
@@ -187,20 +197,49 @@ z80_asm/
   - Ausdrücke auflösen
   - Relocation-Infos erstellen
 
-### 4. Ausdrucks-Evaluierung
-**Frage**: Welche Operatoren und Prioritäten hat M80?
-- **Arithmetik**: +, -, *, /, MOD
-- **Bitweise**: AND, OR, XOR, NOT, SHL, SHR
-- **Relational**: EQ, NE, LT, LE, GT, GE
-- **Spezial**: $ (Location Counter), $$ (?)
-- **Priorität**: Muss M80-kompatibel sein
+### 4. Ausdrucks-Evaluierung ✅ DOKUMENTIERT
+**Status**: Vollständig dokumentiert in M80_SYNTAX.md
 
-### 5. Relocation und Linking
-**Frage**: Welche Relocation-Typen werden benötigt?
-- **Absolute**: Feste Adressen
-- **Relocatable**: Verschiebbare Code/Data-Segmente
-- **External**: Externe Referenzen
-- **Common**: Common Blocks
+**Operator-Präzedenz** (Höchste → Niedrigste):
+1. `NUL` - Null-Operator
+2. `LOW`, `HIGH` - Byte-Isolation (Low/High 8 Bits)
+3. `*`, `/`, `MOD`, `SHR`, `SHL` - Multiplikativ, Bit-Shift
+4. Unary Minus (`-`)
+5. `+`, `-` - Additiv
+6. `EQ`, `NE`, `LT`, `LE`, `GT`, `GE` - Relational (Vergleich)
+7. `NOT` - Logisches NOT
+8. `AND` - Logisches AND
+9. `OR`, `XOR` - Logisches OR/XOR
+
+**Spezial**: 
+- `$` - Location Counter (aktueller Wert)
+- Parenthesen für Präzedenz-Änderung
+
+**KRITISCH**: Alle Operatoren außer `+`, `-`, `*`, `/` benötigen **Leerzeichen** vor/nach Operanden!
+
+### 5. Relocation und Linking ✅ DOKUMENTIERT
+**Status**: Mode-System vollständig dokumentiert in M80_SYNTAX.md
+
+**Mode-Typen**:
+- **Absolute** (ASEG): Feste Adressen, nicht relokatibel
+- **Program Relative** (CSEG): Code-Segment, Standard-Modus
+- **Data Relative** (DSEG): Data-Segment (für RAM)
+- **Common**: Named/Blank Common Blocks (Overlay-Semantik, LC immer bei 0)
+
+**Arithmetik-Regeln**:
+- Absolute + Absolute = Absolute
+- Absolute + Relocatable = Relocatable (gleicher Mode)
+- Relocatable - Relocatable (gleicher Mode) = Absolute
+- Relocatable + Relocatable = **FEHLER**
+
+**External-Regeln**:
+- Nur 2-Byte-Felder
+- Erlaubt: External, External±Const
+- Nicht erlaubt: External+External, External in *,/,etc.
+
+**LINK-80 Switches**:
+- `/P:<addr>` - Program (CSEG) Origin
+- `/D:<addr>` - Data (DSEG) Origin
 
 ### 6. Listing-Format
 **Frage**: Wie genau muss das .prn-Format übereinstimmen?
@@ -209,12 +248,22 @@ z80_asm/
 - **Spaltenbreiten**: Exakte Formatierung?
 - **Symbol-Tabelle**: Am Ende des Listings?
 
-### 7. Fehlerbehandlung
-**Frage**: Wie meldet M80 Fehler?
-- Fehlercode-Nummern?
-- Fehlermeldungen im Listing?
-- Fehlerstatistik am Ende?
-- Warnungen vs. Fehler?
+### 7. Fehlerbehandlung ✅ DOKUMENTIERT
+**Status**: Fehler-Codes dokumentiert in M80_SYNTAX.md
+
+**M80 Fehler-Codes**:
+- **A** - Address error (Wert passt nicht ins Feld)
+- **C** - Conditional error (IF/ELSE/ENDIF Struktur)
+- **D** - Double definition (Symbol mehrfach definiert)
+- **M** - Multiply defined (Symbol-Konflikt)
+- **O** - Objectionable syntax (Syntax-Fehler)
+- **P** - Phase error (Pass 1 ≠ Pass 2 Adressen)
+- **Q** - Questionable (z.B. mehrere TITLEs)
+- **R** - Register error (Falsches/unerlaubtes Register)
+- **U** - Undefined symbol (Unbekanntes Symbol)
+- **V** - Value error (Expression in Pass 1 nicht berechenbar)
+
+**Ausgabe**: Fehler erscheinen im Listing mit Code-Buchstaben
 
 ### 8. Kompatibilität mit Original-Tools
 **Frage**: Wie testen wir Bit-genaue Kompatibilität?
@@ -237,15 +286,22 @@ z80_asm/
   - Catch2?
   - Eigenes Framework?
 
-### 10. Z80-Befehlssatz
-**Frage**: Vollständige Opcode-Tabelle?
-- **Standard-Opcodes**: 8080-kompatibel
+### 10. Z80-Befehlssatz ✅ IMPLEMENTIERT
+**Status**: Basis-Implementierung abgeschlossen in z80_instructions.cpp
+
+- **Standard-Opcodes**: ✅ 8080-kompatible Opcodes implementiert
 - **Z80-Erweiterungen**: 
-  - IX/IY-Register
-  - Bit-Operationen
-  - Block-Operationen
-  - Erweiterte Rotationen
-- **Undokumentierte Opcodes**: Unterstützen?
+  - [x] Basis-Instruktionen (LD, ADD, SUB, INC, DEC)
+  - [x] Stack-Ops (PUSH, POP)
+  - [x] Jump/Call/Return (JP, JR, CALL, RET, RST)
+  - [x] Rotate/Shift Basis (RLCA, RRCA, RLA, RRA)
+  - [x] I/O (IN, OUT)
+  - [x] Misc (NOP, HALT, DI, EI)
+  - [ ] IX/IY-Register (DD/FD-Prefix) - TODO
+  - [ ] Bit-Operationen (CB-Prefix) - Placeholder
+  - [ ] Block-Operationen (ED-Prefix) - TODO
+  - [ ] Erweiterte Rotationen (CB-Prefix) - TODO
+- **Undokumentierte Opcodes**: Vorerst NEIN (später optional)
 
 ## Entwicklungsplan (Inkrementell)
 
