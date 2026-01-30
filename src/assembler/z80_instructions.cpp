@@ -730,6 +730,26 @@ void Z80Instructions::addJumpCallReturnInstructions() {
         instructions_.push_back(jrCondLabel);
     }
     
+    // DJNZ e (Decrement B and Jump if Not Zero)
+    InstructionInfo djnzE;
+    djnzE.mnemonic = "DJNZ";
+    djnzE.operandPattern = "E";
+    djnzE.mode = AddressingMode::Relative;
+    djnzE.opcodes = {0x10};
+    djnzE.operandBytes = 1;
+    djnzE.cycles = 13;  // 13 if taken, 8 if not
+    instructions_.push_back(djnzE);
+    
+    // DJNZ nn (with label)
+    InstructionInfo djnzLabel;
+    djnzLabel.mnemonic = "DJNZ";
+    djnzLabel.operandPattern = "NN";
+    djnzLabel.mode = AddressingMode::Relative;
+    djnzLabel.opcodes = {0x10};
+    djnzLabel.operandBytes = 1;
+    djnzLabel.cycles = 13;
+    instructions_.push_back(djnzLabel);
+    
     // CALL nn
     InstructionInfo callnn;
     callnn.mnemonic = "CALL";

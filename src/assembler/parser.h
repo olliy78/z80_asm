@@ -181,6 +181,11 @@ private:
     Address dsegOrigin_;                ///< DSEG origin
     Address asegOrigin_;                ///< ASEG origin
     std::string moduleName_;            ///< Module name (from NAME/TITLE directive)
+    
+    // PHASE/DEPHASE support
+    bool inPhase_;                      ///< True if in PHASE block
+    Address phaseOrigin_;               ///< Origin address before PHASE
+    Address phaseOffset_;               ///< Phase offset (runtime - assembly address)
 };
 
 } // namespace z80

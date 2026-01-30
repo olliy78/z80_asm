@@ -19,6 +19,9 @@ Parser::Parser()
     , dsegOrigin_(0)
     , asegOrigin_(0)
     , moduleName_("")
+    , inPhase_(false)
+    , phaseOrigin_(0)
+    , phaseOffset_(0)
 {
 }
 
@@ -211,7 +214,8 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
                 if (!labelName.empty()) {
                     Symbol sym;
                     sym.type = SymbolType::Label;
-                    sym.value = locationCounter_;
+                    // Use phased address if in PHASE block
+                    sym.value = locationCounter_ + (inPhase_ ? phaseOffset_ : 0);
                     sym.segment = currentSegment_;
                     sym.defined = true;
                     sym.isRelocatable = (currentSegment_ != SegmentType::ASEG);
@@ -266,6 +270,35 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
                 }
                 else if (upperMnemonic == ".LIST" || upperMnemonic == ".XLIST") {
                     // Listing control directives (ignore for now)
+                }
+                else if (upperMnemonic == ".TFCOND" || upperMnemonic == ".SFCOND" || upperMnemonic == ".LFCOND") {
+                    // Conditional listing directives (ignore for now)
+                }
+                else if (upperMnemonic == ".PHASE" || upperMnemonic == "PHASE") {
+                    // .PHASE: Set phase offset for relocatable code
+                    // Code is assembled at current location but symbols use phase address
+                    token = lexer.nextToken();
+                    if (token.type == TokenType::Number || token.type == TokenType::Identifier) {
+                        // Evaluate expression for phase address
+                        int64_t phaseAddr = 0;
+                        if (token.type == TokenType::Number) {
+                            phaseAddr = token.numValue;
+                        } else {
+                            // Try to resolve symbol
+                            const Symbol* sym = symbolTable_.getSymbol(token.text);
+                            if (sym && sym->defined) {
+                                phaseAddr = sym->value;
+                            }
+                        }
+                        phaseOrigin_ = locationCounter_;
+                        phaseOffset_ = phaseAddr - locationCounter_;
+                        inPhase_ = true;
+                    }
+                }
+                else if (upperMnemonic == ".DEPHASE" || upperMnemonic == "DEPHASE") {
+                    // .DEPHASE: End phase block
+                    inPhase_ = false;
+                    phaseOffset_ = 0;
                 }
                 else if (upperMnemonic == "END") {
                     // Stop parsing
