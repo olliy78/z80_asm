@@ -71,6 +71,8 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
     inMacroDefinition_ = false;
     macroBody_.clear();
     
+    // Pass 1: Build symbol table and calculate addresses
+    
     // Process source lines (including macro expansion)
     std::vector<std::string> expandedLines;
     expandSourceWithMacros(sourceLines, expandedLines, filename);
@@ -102,6 +104,7 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
                 labelName = token.text;
                 parsedLine.label = labelName;
                 hasColon = true;
+
                 lexer.nextToken();  // Skip colon
                 token = lexer.nextToken();
             }
@@ -131,16 +134,53 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
                 }
             }
             else if (next.type == TokenType::EndOfLine || next.type == TokenType::EndOfFile) {
-                // Just a standalone label
-                labelName = token.text;
-                parsedLine.label = labelName;
-                token = lexer.nextToken();
+                // Check if it's a mnemonic without operands (like NOP, RET, etc.)
+                std::string upperToken = token.text;
+                for (char& c : upperToken) c = std::toupper(c);
+                bool isDirective = (upperToken == "END" || upperToken == "ORG" || 
+                                   upperToken == "CSEG" || upperToken == "DSEG" || upperToken == "ASEG");
+                
+                if (instructions_.isMnemonic(token.text) || isDirective) {
+                    // It's an instruction/directive without operands, not a label
+                    // Don't consume token, continue to mnemonic parsing
+                } else {
+                    // It's a standalone label
+                    labelName = token.text;
+                    parsedLine.label = labelName;
+                    token = lexer.nextToken();
+                }
             }
         }
         
         // Parse mnemonic/directive
+        // If we have a label but no mnemonic (standalone label), add it to symbol table
+        if (!labelName.empty() && token.type != TokenType::Identifier) {
+            Symbol sym;
+            sym.type = SymbolType::Label;
+            sym.value = locationCounter_ + (inPhase_ ? phaseOffset_ : 0);
+            sym.segment = currentSegment_;
+            sym.defined = true;
+            sym.isRelocatable = (currentSegment_ != SegmentType::ASEG);
+            sym.definedLine = lineNum;
+            symbolTable_.addSymbol(labelName, sym);
+
+        }
+        
         if (token.type == TokenType::Identifier) {
             parsedLine.mnemonic = token.text;
+            // Add label to symbol table FIRST (before processing directive/instruction)
+            if (!labelName.empty()) {
+                Symbol sym;
+                sym.type = SymbolType::Label;
+                // Use phased address if in PHASE block
+                sym.value = locationCounter_ + (inPhase_ ? phaseOffset_ : 0);
+                sym.segment = currentSegment_;
+                sym.defined = true;
+                sym.isRelocatable = (currentSegment_ != SegmentType::ASEG);
+                sym.definedLine = lineNum;
+                symbolTable_.addSymbol(labelName, sym);
+
+            }
             
             // Check if it's a directive
             std::string upperMnemonic = token.text;
@@ -221,20 +261,7 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
                 }
             }
             else {
-                // For all other directives and instructions, add label if present
-                if (!labelName.empty()) {
-                    Symbol sym;
-                    sym.type = SymbolType::Label;
-                    // Use phased address if in PHASE block
-                    sym.value = locationCounter_ + (inPhase_ ? phaseOffset_ : 0);
-                    sym.segment = currentSegment_;
-                    sym.defined = true;
-                    sym.isRelocatable = (currentSegment_ != SegmentType::ASEG);
-                    sym.definedLine = lineNum;
-                    symbolTable_.addSymbol(labelName, sym);
-                }
-                
-                // Continue processing directive/instruction
+                // Continue processing directive/instruction (label already added above)
                 if (upperMnemonic == "DB") {
                     // Parse operands for later use in pass 2
                     parsedLine.operandString = parseOperands(lexer, parsedLine.operands);
