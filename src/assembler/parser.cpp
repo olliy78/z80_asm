@@ -254,7 +254,7 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
                 // Check if first token is a known mnemonic or directive
                 std::string upperToken = token.text;
                 for (char& c : upperToken) c = std::toupper(c);
-                bool isDirective = (upperToken == "ORG" || upperToken == "EQU" || 
+                bool isDirective = (upperToken == "ORG" || upperToken == "EQU" || upperToken == "ASET" ||
                                    upperToken == "DB" || upperToken == "DW" || 
                                    upperToken == "DS" || upperToken == "END" ||
                                    upperToken == "PUBLIC" || upperToken == "EXTRN" ||
@@ -262,6 +262,7 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
                                    upperToken == "NAME" || upperToken == "TITLE" ||
                                    upperToken == "PHASE" || upperToken == "DEPHASE" ||
                                    upperToken == ".PHASE" || upperToken == ".DEPHASE" ||
+                                   upperToken == "INCLUDE" ||
                                    upperToken == "CSEG" || upperToken == "DSEG" || upperToken == "ASEG");
                 
                 if (instructions_.isMnemonic(token.text) || isDirective) {
@@ -309,8 +310,14 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
         
         if (token.type == TokenType::Identifier) {
             parsedLine.mnemonic = token.text;
+            
+            // Check if it's a directive
+            std::string upperMnemonic = token.text;
+            for (char& c : upperMnemonic) c = std::toupper(c);
+            
             // Add label to symbol table FIRST (before processing directive/instruction)
-            if (!labelName.empty()) {
+            // BUT NOT for EQU/ASET - they define the label themselves
+            if (!labelName.empty() && upperMnemonic != "EQU" && upperMnemonic != "ASET") {
                 Symbol sym;
                 sym.type = SymbolType::Label;
                 // Use phased address if in PHASE block
@@ -320,12 +327,7 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
                 sym.isRelocatable = (currentSegment_ != SegmentType::ASEG);
                 sym.definedLine = lineNum;
                 symbolTable_.addSymbol(labelName, sym);
-
             }
-            
-            // Check if it's a directive
-            std::string upperMnemonic = token.text;
-            for (char& c : upperMnemonic) c = std::toupper(c);
             
             if (upperMnemonic == "ORG") {
                 token = lexer.nextToken();
@@ -337,14 +339,62 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
             else if (upperMnemonic == "EQU") {
                 // EQU: symbol definition only, no label
                 token = lexer.nextToken();
-                if (token.type == TokenType::Number && !labelName.empty()) {
-                    Symbol sym;
-                    sym.type = SymbolType::Equ;
-                    sym.value = token.numValue;
-                    sym.defined = true;
-                    sym.segment = currentSegment_;
-                    sym.definedLine = lineNum;
-                    symbolTable_.addSymbol(labelName, sym);
+                if (!labelName.empty()) {
+                    // Parse expression
+                    std::string expression;
+                    while (token.type != TokenType::EndOfLine && token.type != TokenType::EndOfFile) {
+                        if (token.type == TokenType::Comment) break;
+                        expression += token.text + " ";
+                        token = lexer.nextToken();
+                    }
+                    
+                    // Evaluate expression
+                    ExpressionEvaluator evaluator(symbolTable_, locationCounter_, currentSegment_);
+                    ExpressionResult result = evaluator.evaluate(expression);
+                    
+                    if (result.valid) {
+                        Symbol sym;
+                        sym.type = SymbolType::Equ;
+                        sym.value = result.value;
+                        sym.defined = true;
+                        sym.segment = currentSegment_;
+                        sym.definedLine = lineNum;
+                        symbolTable_.addSymbol(labelName, sym);
+                    }
+                }
+            }
+            else if (upperMnemonic == "ASET") {
+                // ASET: assignable variable (like EQU but can be redefined)
+                token = lexer.nextToken();
+                if (!labelName.empty()) {
+                    // Parse expression
+                    std::string expression;
+                    while (token.type != TokenType::EndOfLine && token.type != TokenType::EndOfFile) {
+                        if (token.type == TokenType::Comment) break;
+                        expression += token.text + " ";
+                        token = lexer.nextToken();
+                    }
+                    
+                    // Evaluate expression
+                    ExpressionEvaluator evaluator(symbolTable_, locationCounter_, currentSegment_);
+                    ExpressionResult result = evaluator.evaluate(expression);
+                    
+                    if (result.valid) {
+                        Symbol sym;
+                        sym.type = SymbolType::Equ;
+                        sym.value = result.value;
+                        sym.defined = true;
+                        sym.segment = currentSegment_;
+                        sym.definedLine = lineNum;
+                        // ASET allows redefinition, so we update if exists
+                        Symbol* existingSym = symbolTable_.getSymbol(labelName);
+                        if (existingSym) {
+                            existingSym->value = result.value;
+                            existingSym->defined = true;
+                        } else {
+                            symbolTable_.addSymbol(labelName, sym);
+                        }
+                    }
                 }
             }
             else if (upperMnemonic == "PUBLIC" || upperMnemonic == "ENTRY") {
@@ -1195,7 +1245,7 @@ bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
                 // Check if first token is a known directive/mnemonic
                 std::string upperToken = token.text;
                 for (char& c : upperToken) c = std::toupper(c);
-                bool isDirective = (upperToken == "ORG" || upperToken == "EQU" || 
+                bool isDirective = (upperToken == "ORG" || upperToken == "EQU" || upperToken == "ASET" ||
                                    upperToken == "DB" || upperToken == "DW" || 
                                    upperToken == "DS" || upperToken == "END" ||
                                    upperToken == "PUBLIC" || upperToken == "EXTRN" ||
@@ -1208,6 +1258,7 @@ bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
                                    upperToken == ".8080" || upperToken == ".LIST" ||
                                    upperToken == ".XLIST" || upperToken == ".TFCOND" ||
                                    upperToken == ".SFCOND" || upperToken == ".LFCOND" ||
+                                   upperToken == "INCLUDE" ||
                                    upperToken == "MACRO" || upperToken == "REPT" ||
                                    upperToken == "IRP" || upperToken == "IRPC" ||
                                    upperToken == "ENDM" || upperToken == "LOCAL" ||
@@ -1225,6 +1276,53 @@ bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
         if (token.type == TokenType::Identifier) {
             std::string upperMnemonic = token.text;
             for (char& c : upperMnemonic) c = std::toupper(c);
+            
+            // INCLUDE directive - process included file
+            if (upperMnemonic == "INCLUDE") {
+                token = lexer.nextToken();
+                if (token.type == TokenType::Identifier || token.type == TokenType::String) {
+                    std::string includeFile = token.text;
+                    
+                    // Build include file path (relative to current file's directory)
+                    std::string includePath;
+                    size_t lastSlash = filename.find_last_of("/\\");
+                    if (lastSlash != std::string::npos) {
+                        includePath = filename.substr(0, lastSlash + 1) + includeFile;
+                    } else {
+                        includePath = includeFile;
+                    }
+                    
+                    // Read included file
+                    std::ifstream includeStream(includePath);
+                    if (!includeStream.is_open()) {
+                        // Try without path modification
+                        includeStream.open(includeFile);
+                        if (!includeStream.is_open()) {
+                            // Error: cannot open include file
+                            expandedLines.push_back("; ERROR: Cannot open include file: " + includeFile);
+                            continue;
+                        }
+                    }
+                    
+                    // Read all lines from included file
+                    std::vector<std::string> includeLines;
+                    std::string includeLine;
+                    while (std::getline(includeStream, includeLine)) {
+                        includeLines.push_back(includeLine);
+                    }
+                    includeStream.close();
+                    
+                    // Recursively expand included file (for nested includes and macros)
+                    std::vector<std::string> expandedInclude;
+                    expandSourceWithMacros(includeLines, expandedInclude, includePath);
+                    
+                    // Add expanded lines to output
+                    for (const auto& expandedLine : expandedInclude) {
+                        expandedLines.push_back(expandedLine);
+                    }
+                    continue;
+                }
+            }
             
             // MACRO definition
             if (upperMnemonic == "MACRO" && !labelName.empty()) {
