@@ -22,6 +22,7 @@
 #include "rel_writer.h"
 #include "errors.h"
 #include "macro.h"
+#include "conditional.h"
 
 namespace z80 {
 
@@ -186,6 +187,7 @@ private:
     SymbolTable symbolTable_;           ///< Symbol table
     Z80Instructions instructions_;      ///< Z80 instruction set
     MacroProcessor macroProcessor_;     ///< Macro processor
+    ConditionalProcessor conditionalProcessor_; ///< Conditional assembly processor
     std::vector<ParsedLine> lines_;     ///< Parsed lines
     std::vector<AssemblyError> errors_; ///< Assembly errors
     

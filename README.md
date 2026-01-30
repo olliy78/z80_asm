@@ -108,17 +108,28 @@ Entwicklung eines Assemblers, der exakt das gleiche binäre Ausgabeformat (.REL)
   - Page management (50 lines/page default, configurable 10-255)
   - M80-compatible format: AAAA BBBBBBBBBB Source
   - Command-line options: /L (listing), /S (symbol table)
-  - Symbol table output (alphabetically sorted)
+  - Symbol table output (alphabetically sorted, 2 columns, proper spacing) ✨
   - Form-feed page breaks
-  - TODO: Parser needs to add labels to symbol table
+- [x] **Forward Reference Resolution** ✨
+  - Pass1 collects all labels before Pass2 expression evaluation
+  - Instructions like JR/JP with forward references now work correctly
+  - Labels added to symbol table immediately upon encounter
+- [x] **Conditional Assembly** ✨
+  - IF/IFT - True if expression != 0
+  - IFE/IFF - True if expression == 0
+  - IF1/IF2 - Pass-dependent conditionals
+  - IFDEF/IFNDEF - Symbol existence tests
+  - IFB/IFNB - Blank argument tests
+  - IFIDN/IFDIF - String comparison
+  - ELSE/ENDIF - Complete flow control
+  - Nesting up to 255 levels
+  - ~500 lines of conditional infrastructure
+  - **All test cases passing!**
 
 ### In Arbeit (Phase 3)
-- [ ] Conditional Assembly (IF/ELSE/ENDIF)
 - [ ] Chain Address Tracking for relocatable references
-- [ ] Symbol Table Integration (labels not yet in symbol table)
-
-### Geplant
 - [ ] bios.mac Complete Assembly (Validation)
+- [ ] LINK-80 Linker Implementation
 
 ## Build-Anleitung
 
@@ -253,13 +264,20 @@ Siehe [PROJEKT_PLANUNG.md](doc/PROJEKT_PLANUNG.md) für detaillierte Information
 - [x] **PUBLIC/EXTRN (Multi-Module Support)** ✨
 - [x] **NAME/TITLE (Module Naming)** ✨
 - [x] **.PHASE/.DEPHASE (Relocatable Code)** ✨
-- [ ] MACRO/ENDM (Phase 3)
-- [ ] IF/ELSE/ENDIF (Phase 3)
+- [x] **MACRO/ENDM (User-Defined Macros)** ✨
+- [x] **REPT/IRP/IRPC (Repeat Macros)** ✨
+- [x] **IF/ELSE/ENDIF (Conditional Assembly)** ✨
+  - IF/IFT, IFE/IFF - Expression-based
+  - IF1/IF2 - Pass-dependent
+  - IFDEF/IFNDEF - Symbol existence
+  - IFB/IFNB - Blank tests
+  - IFIDN/IFDIF - String comparison
+  - Nesting up to 255 levels
 
 ### Ausgabeformate
 
 - ✅ **Microsoft Relocatable Object Format (.REL)** - Funktionsfähig!
-- [ ] **Listing (.PRN)** - Geplant
+- ✅ **Listing (.PRN)** - Funktionsfähig! (mit /L /S Optionen)
 
 ## Testing
 

@@ -167,10 +167,20 @@ int main(int argc, char* argv[]) {
                 
                 // Symbol table header with form feed
                 symFile << "\f\n";
-                symFile << std::left << std::setw(60) << "test_listing_simple" << "PAGE   2\n\n";
+                // Extract filename for page header
+                std::string headerName = listingFile;
+                size_t dotPos = headerName.find_last_of('.');
+                if (dotPos != std::string::npos) {
+                    headerName = headerName.substr(0, dotPos);
+                }
+                size_t slashPos = headerName.find_last_of("/\\");
+                if (slashPos != std::string::npos) {
+                    headerName = headerName.substr(slashPos + 1);
+                }
+                symFile << std::left << std::setw(60) << headerName << "PAGE   2\n\n";
                 symFile << "Symbol Table:\n\n";
                 
-                // Write symbols (3 columns)
+                // Write symbols (2 columns, better formatted)
                 const int columnsPerLine = 2;
                 int column = 0;
                 
@@ -178,15 +188,21 @@ int main(int argc, char* argv[]) {
                     const std::string& name = pair.first;
                     const auto& sym = pair.second;
                     
-                    symFile << std::left << std::setw(12) << name << " ";
+                    // Format: NAME          VVVV T
+                    symFile << std::left << std::setw(14) << name << " ";
                     symFile << std::hex << std::uppercase << std::setw(4) << std::setfill('0') << sym.value;
+                    symFile << std::setfill(' ');
                     
-                    // Type
-                    std::string typeStr;
-                    if (sym.segment == z80::SegmentType::CSEG) typeStr = " C";
-                    else if (sym.segment == z80::SegmentType::DSEG) typeStr = " D";
-                    else if (sym.segment == z80::SegmentType::ASEG) typeStr = " A";
-                    symFile << typeStr << "   ";
+                    // Type indicator
+                    if (sym.segment == z80::SegmentType::CSEG) symFile << " C";
+                    else if (sym.segment == z80::SegmentType::DSEG) symFile << " D";
+                    else if (sym.segment == z80::SegmentType::ASEG) symFile << " A";
+                    else symFile << "  ";
+                    
+                    if (sym.isPublic) symFile << " Pub";
+                    if (sym.isExternal) symFile << " Ext";
+                    
+                    symFile << "   ";
                     
                     column++;
                     if (column >= columnsPerLine) {

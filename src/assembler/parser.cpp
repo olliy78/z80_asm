@@ -70,6 +70,8 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
     currentSegment_ = SegmentType::CSEG;
     inMacroDefinition_ = false;
     macroBody_.clear();
+    conditionalProcessor_.clear();
+    conditionalProcessor_.setPass(1);
     
     // Pass 1: Build symbol table and calculate addresses
     
@@ -89,12 +91,151 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
             continue;
         }
         
+        // Check FIRST if this is a conditional directive (before label processing)
+        // Conditional directives never have labels and control assembly flow
+        if (token.type == TokenType::Identifier) {
+            std::string upperToken = token.text;
+            for (char& c : upperToken) c = std::toupper(c);
+            
+            bool isConditionalDirective = false;
+            if (upperToken == "IF" || upperToken == "IFT") {
+                std::string expression;
+                while (true) {
+                    token = lexer.nextToken();
+                    if (token.type == TokenType::EndOfLine || token.type == TokenType::EndOfFile) break;
+                    expression += token.text + " ";
+                }
+                conditionalProcessor_.processIF(expression, symbolTable_, lineNum);
+                isConditionalDirective = true;
+            }
+            else if (upperToken == "IFE" || upperToken == "IFF") {
+                std::string expression;
+                while (true) {
+                    token = lexer.nextToken();
+                    if (token.type == TokenType::EndOfLine || token.type == TokenType::EndOfFile) break;
+                    expression += token.text + " ";
+                }
+                conditionalProcessor_.processIFE(expression, symbolTable_, lineNum);
+                isConditionalDirective = true;
+            }
+            else if (upperToken == "IF1") {
+                conditionalProcessor_.processIF1(lineNum);
+                isConditionalDirective = true;
+            }
+            else if (upperToken == "IF2") {
+                conditionalProcessor_.processIF2(lineNum);
+                isConditionalDirective = true;
+            }
+            else if (upperToken == "IFDEF") {
+                token = lexer.nextToken();
+                if (token.type == TokenType::Identifier) {
+                    conditionalProcessor_.processIFDEF(token.text, symbolTable_, lineNum);
+                }
+                isConditionalDirective = true;
+            }
+            else if (upperToken == "IFNDEF") {
+                token = lexer.nextToken();
+                if (token.type == TokenType::Identifier) {
+                    conditionalProcessor_.processIFNDEF(token.text, symbolTable_, lineNum);
+                }
+                isConditionalDirective = true;
+            }
+            else if (upperToken == "IFB") {
+                std::string argument;
+                while (true) {
+                    token = lexer.nextToken();
+                    if (token.type == TokenType::EndOfLine || token.type == TokenType::EndOfFile) break;
+                    argument += token.text;
+                }
+                conditionalProcessor_.processIFB(argument, lineNum);
+                isConditionalDirective = true;
+            }
+            else if (upperToken == "IFNB") {
+                std::string argument;
+                while (true) {
+                    token = lexer.nextToken();
+                    if (token.type == TokenType::EndOfLine || token.type == TokenType::EndOfFile) break;
+                    argument += token.text;
+                }
+                conditionalProcessor_.processIFNB(argument, lineNum);
+                isConditionalDirective = true;
+            }
+            else if (upperToken == "IFIDN") {
+                std::string arg1, arg2;
+                bool foundComma = false;
+                while (true) {
+                    token = lexer.nextToken();
+                    if (token.type == TokenType::EndOfLine || token.type == TokenType::EndOfFile) break;
+                    if (token.type == TokenType::Comma && !foundComma) {
+                        foundComma = true;
+                    } else if (foundComma) {
+                        arg2 += token.text;
+                    } else {
+                        arg1 += token.text;
+                    }
+                }
+                conditionalProcessor_.processIFIDN(arg1, arg2, lineNum);
+                isConditionalDirective = true;
+            }
+            else if (upperToken == "IFDIF") {
+                std::string arg1, arg2;
+                bool foundComma = false;
+                while (true) {
+                    token = lexer.nextToken();
+                    if (token.type == TokenType::EndOfLine || token.type == TokenType::EndOfFile) break;
+                    if (token.type == TokenType::Comma && !foundComma) {
+                        foundComma = true;
+                    } else if (foundComma) {
+                        arg2 += token.text;
+                    } else {
+                        arg1 += token.text;
+                    }
+                }
+                conditionalProcessor_.processIFDIF(arg1, arg2, lineNum);
+                isConditionalDirective = true;
+            }
+            else if (upperToken == "ELSE") {
+                if (!conditionalProcessor_.processELSE(lineNum)) {
+                    AssemblyError err;
+                    err.level = ErrorLevel::Error;
+                    err.message = "ELSE without IF";
+                    err.filename = filename;
+                    err.line = lineNum;
+                    err.column = 0;
+                    errors_.push_back(err);
+                }
+                isConditionalDirective = true;
+            }
+            else if (upperToken == "ENDIF") {
+                if (!conditionalProcessor_.processENDIF(lineNum)) {
+                    AssemblyError err;
+                    err.level = ErrorLevel::Error;
+                    err.message = "ENDIF without IF";
+                    err.filename = filename;
+                    err.line = lineNum;
+                    err.column = 0;
+                    errors_.push_back(err);
+                }
+                isConditionalDirective = true;
+            }
+            
+            // If it was a conditional directive, skip to next line
+            if (isConditionalDirective) {
+                continue;
+            }
+        }
+        
+        // Check if we should assemble this line (based on conditionals)
+        if (!conditionalProcessor_.shouldAssemble()) {
+            continue;  // Skip line inside false conditional
+        }
+        
         ParsedLine parsedLine;
         parsedLine.lineNumber = lineNum;
         parsedLine.address = locationCounter_;
         parsedLine.segment = currentSegment_;
         
-        // Check for label
+        // Now do normal label parsing
         std::string labelName;
         bool hasColon = false;
         if (token.type == TokenType::Identifier) {
@@ -369,6 +510,8 @@ bool Parser::pass2(const std::vector<std::string>& sourceLines, const std::strin
     // Pass 2: Generate actual machine code for each line
     locationCounter_ = 0;
     currentSegment_ = SegmentType::CSEG;
+    conditionalProcessor_.clear();
+    conditionalProcessor_.setPass(2);
     
     // Re-expand source with macros (we need to do this again for pass2)
     std::vector<std::string> expandedLines;
@@ -431,6 +574,13 @@ bool Parser::pass2(const std::vector<std::string>& sourceLines, const std::strin
                  upperMnemonic == ".LIST" || upperMnemonic == ".XLIST" ||
                  upperMnemonic == ".TFCOND" || upperMnemonic == ".SFCOND" || upperMnemonic == ".LFCOND") {
             // Assembler directives - ignore
+            continue;
+        }
+        else if (upperMnemonic == "IF" || upperMnemonic == "IFT" || upperMnemonic == "IFE" || upperMnemonic == "IFF" ||
+                 upperMnemonic == "IF1" || upperMnemonic == "IF2" || upperMnemonic == "IFDEF" || upperMnemonic == "IFNDEF" ||
+                 upperMnemonic == "IFB" || upperMnemonic == "IFNB" || upperMnemonic == "IFIDN" || upperMnemonic == "IFDIF" ||
+                 upperMnemonic == "ELSE" || upperMnemonic == "ENDIF") {
+            // Conditional directives handled in pass 1
             continue;
         }
         else if (upperMnemonic == "END") {

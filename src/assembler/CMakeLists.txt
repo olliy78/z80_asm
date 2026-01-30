@@ -14,6 +14,7 @@ add_executable(m80
     bit_writer.cpp
     errors.cpp
     macro.cpp
+    conditional.cpp
 )
 
 target_link_libraries(m80 PRIVATE z80common)

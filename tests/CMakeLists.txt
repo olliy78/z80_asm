@@ -27,6 +27,7 @@ add_executable(test_parser
     ../src/assembler/rel_writer.cpp
     ../src/assembler/bit_writer.cpp
     ../src/assembler/macro.cpp
+    ../src/assembler/conditional.cpp
 )
 
 target_link_libraries(test_parser PRIVATE z80common)
@@ -42,6 +43,7 @@ add_executable(test_parser_advanced
     ../src/assembler/rel_writer.cpp
     ../src/assembler/bit_writer.cpp
     ../src/assembler/macro.cpp
+    ../src/assembler/conditional.cpp
 )
 
 target_link_libraries(test_parser_advanced PRIVATE z80common)
@@ -66,6 +68,7 @@ add_executable(test_db_dw
     ../src/assembler/rel_writer.cpp
     ../src/assembler/bit_writer.cpp
     ../src/assembler/macro.cpp
+    ../src/assembler/conditional.cpp
 )
 
 target_link_libraries(test_db_dw PRIVATE z80common)
@@ -98,6 +101,7 @@ add_executable(test_rel_output
     ../src/assembler/rel_writer.cpp
     ../src/assembler/bit_writer.cpp
     ../src/assembler/macro.cpp
+    ../src/assembler/conditional.cpp
 )
 
 target_link_libraries(test_rel_output PRIVATE z80common)
@@ -115,6 +119,7 @@ add_executable(test_assembler_architecture
     ../src/assembler/rel_writer.cpp
     ../src/assembler/bit_writer.cpp
     ../src/assembler/macro.cpp
+    ../src/assembler/conditional.cpp
 )
 
 target_link_libraries(test_assembler_architecture PRIVATE z80common)
@@ -132,6 +137,7 @@ add_executable(test_real_program
     ../src/assembler/rel_writer.cpp
     ../src/assembler/bit_writer.cpp
     ../src/assembler/macro.cpp
+    ../src/assembler/conditional.cpp
 )
 
 target_link_libraries(test_real_program PRIVATE z80common)
@@ -149,6 +155,7 @@ add_executable(test_advanced
     ../src/assembler/rel_writer.cpp
     ../src/assembler/bit_writer.cpp
     ../src/assembler/macro.cpp
+    ../src/assembler/conditional.cpp
 )
 
 target_link_libraries(test_advanced PRIVATE z80common)
