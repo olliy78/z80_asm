@@ -851,6 +851,111 @@ void Z80Instructions::addMiscInstructions() {
     ei.cycles = 4;
     instructions_.push_back(ei);
     
+    // IM 0, IM 1, IM 2 (Interrupt Mode)
+    InstructionInfo im0;
+    im0.mnemonic = "IM";
+    im0.operandPattern = "0";
+    im0.mode = AddressingMode::Immediate;
+    im0.opcodes = {0xED, 0x46};
+    im0.operandBytes = 0;
+    im0.cycles = 8;
+    instructions_.push_back(im0);
+    
+    InstructionInfo im1;
+    im1.mnemonic = "IM";
+    im1.operandPattern = "1";
+    im1.mode = AddressingMode::Immediate;
+    im1.opcodes = {0xED, 0x56};
+    im1.operandBytes = 0;
+    im1.cycles = 8;
+    instructions_.push_back(im1);
+    
+    InstructionInfo im2;
+    im2.mnemonic = "IM";
+    im2.operandPattern = "2";
+    im2.mode = AddressingMode::Immediate;
+    im2.opcodes = {0xED, 0x5E};
+    im2.operandBytes = 0;
+    im2.cycles = 8;
+    instructions_.push_back(im2);
+    
+    // RETI (Return from Interrupt)
+    InstructionInfo reti;
+    reti.mnemonic = "RETI";
+    reti.operandPattern = "";
+    reti.mode = AddressingMode::Implied;
+    reti.opcodes = {0xED, 0x4D};
+    reti.operandBytes = 0;
+    reti.cycles = 14;
+    instructions_.push_back(reti);
+    
+    // RETN (Return from Non-Maskable Interrupt)
+    InstructionInfo retn;
+    retn.mnemonic = "RETN";
+    retn.operandPattern = "";
+    retn.mode = AddressingMode::Implied;
+    retn.opcodes = {0xED, 0x45};
+    retn.operandBytes = 0;
+    retn.cycles = 14;
+    instructions_.push_back(retn);
+    
+    // LD I,A and LD A,I (Interrupt register)
+    InstructionInfo ldIA;
+    ldIA.mnemonic = "LD";
+    ldIA.operandPattern = "I,A";
+    ldIA.mode = AddressingMode::Register;
+    ldIA.opcodes = {0xED, 0x47};
+    ldIA.operandBytes = 0;
+    ldIA.cycles = 9;
+    instructions_.push_back(ldIA);
+    
+    InstructionInfo ldAI;
+    ldAI.mnemonic = "LD";
+    ldAI.operandPattern = "A,I";
+    ldAI.mode = AddressingMode::Register;
+    ldAI.opcodes = {0xED, 0x57};
+    ldAI.operandBytes = 0;
+    ldAI.cycles = 9;
+    instructions_.push_back(ldAI);
+    
+    // LD R,A and LD A,R (Refresh register)
+    InstructionInfo ldRA;
+    ldRA.mnemonic = "LD";
+    ldRA.operandPattern = "R,A";
+    ldRA.mode = AddressingMode::Register;
+    ldRA.opcodes = {0xED, 0x4F};
+    ldRA.operandBytes = 0;
+    ldRA.cycles = 9;
+    instructions_.push_back(ldRA);
+    
+    InstructionInfo ldAR;
+    ldAR.mnemonic = "LD";
+    ldAR.operandPattern = "A,R";
+    ldAR.mode = AddressingMode::Register;
+    ldAR.opcodes = {0xED, 0x5F};
+    ldAR.operandBytes = 0;
+    ldAR.cycles = 9;
+    instructions_.push_back(ldAR);
+    
+    // RLD and RRD (Rotate digit left/right)
+    InstructionInfo rld;
+    rld.mnemonic = "RLD";
+    rld.operandPattern = "";
+    rld.mode = AddressingMode::Implied;
+    rld.opcodes = {0xED, 0x6F};
+    rld.operandBytes = 0;
+    rld.cycles = 18;
+    instructions_.push_back(rld);
+    
+    InstructionInfo rrd;
+    rrd.mnemonic = "RRD";
+    rrd.operandPattern = "";
+    rrd.mode = AddressingMode::Implied;
+    rrd.opcodes = {0xED, 0x67};
+    rrd.operandBytes = 0;
+    rrd.cycles = 18;
+    instructions_.push_back(rrd);
+    
     // PUSH and POP for register pairs
     const char* pushPopRegs[] = {"BC", "DE", "HL", "AF"};
     const Byte pushOpcodes[] = {0xC5, 0xD5, 0xE5, 0xF5};
