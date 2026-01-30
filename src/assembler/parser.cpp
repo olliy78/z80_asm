@@ -363,6 +363,12 @@ bool Parser::generateInstruction(ParsedLine& line, const std::string& filename) 
                 std::string upper = op;
                 for (char& c : upper) c = std::toupper(c);
                 
+                // Skip condition codes
+                if (upper == "Z" || upper == "NZ" || upper == "C" || upper == "NC" ||
+                    upper == "P" || upper == "M" || upper == "PE" || upper == "PO") {
+                    continue;
+                }
+                
                 // Skip register operands
                 if (isRegisterOperand(upper)) continue;
                 
@@ -562,6 +568,13 @@ std::string Parser::operandToPattern(const std::string& operand) {
     std::string upper = operand;
     for (char& c : upper) c = std::toupper(c);
     
+    // Check for condition codes BEFORE registers (Z, C could be confused with registers)
+    // Condition codes: Z, NZ, C, NC, P, M, PE, PO
+    if (upper == "Z" || upper == "NZ" || upper == "C" || upper == "NC" ||
+        upper == "P" || upper == "M" || upper == "PE" || upper == "PO") {
+        return upper;
+    }
+    
     // Check if it's a register (single or pair)
     if (isRegisterOperand(upper)) {
         return upper;
@@ -584,7 +597,20 @@ std::string Parser::operandToPattern(const std::string& operand) {
     }
     
     // Check for indirect addressing: (nn) or (expression)
+    // But distinguish between 8-bit port addresses (N) and 16-bit addresses (NN)
     if (upper.length() > 2 && upper[0] == '(' && upper[upper.length()-1] == ')') {
+        // Extract the value inside parentheses
+        std::string innerValue = operand.substr(1, operand.length() - 2);
+        
+        // Try to parse as number to determine if it's 8-bit or 16-bit
+        int base = 10;
+        int64_t value = 0;
+        if (parseNumber(innerValue, value, base) && value >= 0 && value <= 255) {
+            // 8-bit port address - used for IN/OUT instructions
+            return "(N)";
+        }
+        
+        // Otherwise it's a 16-bit memory address
         return "(NN)";
     }
     
@@ -604,6 +630,12 @@ std::string Parser::operandToPattern(const std::string& operand) {
     int base = 10;
     int64_t value = 0;
     if (parseNumber(operand, value, base)) {
+        // Special case: bit numbers 0-7 for BIT/SET/RES instructions
+        // Keep them as literal digits
+        if (value >= 0 && value <= 7 && operand.length() == 1) {
+            return operand;  // Return "0" through "7" literally
+        }
+        
         // Determine size based on value
         if (value >= -128 && value <= 255) {
             // 8-bit value - return N for immediate 8-bit

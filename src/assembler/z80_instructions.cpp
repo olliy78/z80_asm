@@ -50,7 +50,7 @@ bool Z80Instructions::isRegister(const std::string& name) const {
     std::string upper = toUpper(name);
     return (upper == "A" || upper == "B" || upper == "C" || upper == "D" ||
             upper == "E" || upper == "H" || upper == "L" ||
-            upper == "AF" || upper == "BC" || upper == "DE" || upper == "HL" ||
+            upper == "AF" || upper == "AF'" || upper == "BC" || upper == "DE" || upper == "HL" ||
             upper == "SP" || upper == "IX" || upper == "IY" ||
             upper == "IXH" || upper == "IXL" || upper == "IYH" || upper == "IYL" ||
             upper == "I" || upper == "R");
@@ -477,7 +477,7 @@ void Z80Instructions::addLogicalInstructions() {
 }
 
 void Z80Instructions::addRotateShiftInstructions() {
-    // RLCA, RRCA, RLA, RRA
+    // RLCA, RRCA, RLA, RRA (Accumulator rotates)
     InstructionInfo rlca = {"RLCA", AddressingMode::Implied, {0x07}, 0, 4, ""};
     InstructionInfo rrca = {"RRCA", AddressingMode::Implied, {0x0F}, 0, 4, ""};
     InstructionInfo rla = {"RLA", AddressingMode::Implied, {0x17}, 0, 4, ""};
@@ -487,12 +487,161 @@ void Z80Instructions::addRotateShiftInstructions() {
     instructions_.push_back(rrca);
     instructions_.push_back(rla);
     instructions_.push_back(rra);
+    
+    // CB-prefixed rotate/shift instructions
+    const char* regs = "BCDEHL_A";
+    const char* rotateOps[] = {"RLC", "RRC", "RL", "RR", "SLA", "SRA", "SRL"};
+    const Byte rotateBase[] = {0x00, 0x08, 0x10, 0x18, 0x20, 0x28, 0x38};
+    
+    for (int op = 0; op < 7; op++) {
+        for (int reg = 0; reg < 8; reg++) {
+            if (reg == 6) continue; // (HL) handled separately
+            
+            InstructionInfo rotInst;
+            rotInst.mnemonic = rotateOps[op];
+            rotInst.operandPattern = std::string(1, regs[reg]);
+            rotInst.mode = AddressingMode::Register;
+            rotInst.opcodes = {0xCB, static_cast<Byte>(rotateBase[op] + reg)};
+            rotInst.operandBytes = 0;
+            rotInst.cycles = 8;
+            instructions_.push_back(rotInst);
+        }
+        
+        // Rotate/Shift (HL)
+        InstructionInfo rotHL;
+        rotHL.mnemonic = rotateOps[op];
+        rotHL.operandPattern = "(HL)";
+        rotHL.mode = AddressingMode::RegisterIndirect;
+        rotHL.opcodes = {0xCB, static_cast<Byte>(rotateBase[op] + 6)};
+        rotHL.operandBytes = 0;
+        rotHL.cycles = 15;
+        instructions_.push_back(rotHL);
+    }
+    
+    // SLL (undocumented, but widely used)
+    for (int reg = 0; reg < 8; reg++) {
+        if (reg == 6) continue;
+        
+        InstructionInfo sll;
+        sll.mnemonic = "SLL";
+        sll.operandPattern = std::string(1, regs[reg]);
+        sll.mode = AddressingMode::Register;
+        sll.opcodes = {0xCB, static_cast<Byte>(0x30 + reg)};
+        sll.operandBytes = 0;
+        sll.cycles = 8;
+        instructions_.push_back(sll);
+    }
+    
+    InstructionInfo sllHL;
+    sllHL.mnemonic = "SLL";
+    sllHL.operandPattern = "(HL)";
+    sllHL.mode = AddressingMode::RegisterIndirect;
+    sllHL.opcodes = {0xCB, 0x36};
+    sllHL.operandBytes = 0;
+    sllHL.cycles = 15;
+    instructions_.push_back(sllHL);
 }
 
 void Z80Instructions::addBitInstructions() {
-    // BIT, SET, RES b,r
-    // Will be implemented with CB prefix
-    // TODO: Add CB-prefixed instructions
+    // BIT, SET, RES b,r (CB-prefixed)
+    const char* regs = "BCDEHL_A";  // Z80 register encoding
+    
+    // BIT b,r - Test bit b in register r
+    for (int bit = 0; bit < 8; bit++) {
+        for (int reg = 0; reg < 8; reg++) {
+            if (reg == 6) continue; // (HL) handled separately
+            InstructionInfo bitInst;
+            bitInst.mnemonic = "BIT";
+            bitInst.operandPattern = std::to_string(bit) + "," + std::string(1, regs[reg]);
+            bitInst.mode = AddressingMode::Immediate;
+            bitInst.opcodes = {0xCB, static_cast<Byte>(0x40 + (bit << 3) + reg)};
+            bitInst.operandBytes = 0;
+            bitInst.cycles = 8;
+            instructions_.push_back(bitInst);
+        }
+        
+        // BIT b,(HL)
+        InstructionInfo bitHL;
+        bitHL.mnemonic = "BIT";
+        bitHL.operandPattern = std::to_string(bit) + ",(HL)";
+        bitHL.mode = AddressingMode::RegisterIndirect;
+        bitHL.opcodes = {0xCB, static_cast<Byte>(0x46 + (bit << 3))};
+        bitHL.operandBytes = 0;
+        bitHL.cycles = 12;
+        instructions_.push_back(bitHL);
+    }
+    
+    // SET b,r - Set bit b in register r
+    for (int bit = 0; bit < 8; bit++) {
+        for (int reg = 0; reg < 8; reg++) {
+            if (reg == 6) continue;
+            InstructionInfo setInst;
+            setInst.mnemonic = "SET";
+            setInst.operandPattern = std::to_string(bit) + "," + std::string(1, regs[reg]);
+            setInst.mode = AddressingMode::Immediate;
+            setInst.opcodes = {0xCB, static_cast<Byte>(0xC0 + (bit << 3) + reg)};
+            setInst.operandBytes = 0;
+            setInst.cycles = 8;
+            instructions_.push_back(setInst);
+        }
+        
+        // SET b,(HL)
+        InstructionInfo setHL;
+        setHL.mnemonic = "SET";
+        setHL.operandPattern = std::to_string(bit) + ",(HL)";
+        setHL.mode = AddressingMode::RegisterIndirect;
+        setHL.opcodes = {0xCB, static_cast<Byte>(0xC6 + (bit << 3))};
+        setHL.operandBytes = 0;
+        setHL.cycles = 15;
+        instructions_.push_back(setHL);
+    }
+    
+    // RES b,r - Reset bit b in register r
+    for (int bit = 0; bit < 8; bit++) {
+        for (int reg = 0; reg < 8; reg++) {
+            if (reg == 6) continue;
+            InstructionInfo resInst;
+            resInst.mnemonic = "RES";
+            resInst.operandPattern = std::to_string(bit) + "," + std::string(1, regs[reg]);
+            resInst.mode = AddressingMode::Immediate;
+            resInst.opcodes = {0xCB, static_cast<Byte>(0x80 + (bit << 3) + reg)};
+            resInst.operandBytes = 0;
+            resInst.cycles = 8;
+            instructions_.push_back(resInst);
+        }
+        
+        // RES b,(HL)
+        InstructionInfo resHL;
+        resHL.mnemonic = "RES";
+        resHL.operandPattern = std::to_string(bit) + ",(HL)";
+        resHL.mode = AddressingMode::RegisterIndirect;
+        resHL.opcodes = {0xCB, static_cast<Byte>(0x86 + (bit << 3))};
+        resHL.operandBytes = 0;
+        resHL.cycles = 15;
+        instructions_.push_back(resHL);
+    }
+}
+
+void Z80Instructions::addIOInstructions() {
+    // IN A,(N)
+    InstructionInfo inAN;
+    inAN.mnemonic = "IN";
+    inAN.operandPattern = "A,(N)";
+    inAN.mode = AddressingMode::Immediate;
+    inAN.opcodes = {0xDB};
+    inAN.operandBytes = 1;
+    inAN.cycles = 11;
+    instructions_.push_back(inAN);
+    
+    // OUT (N),A
+    InstructionInfo outNA;
+    outNA.mnemonic = "OUT";
+    outNA.operandPattern = "(N),A";
+    outNA.mode = AddressingMode::Immediate;
+    outNA.opcodes = {0xD3};
+    outNA.operandBytes = 1;
+    outNA.cycles = 11;
+    instructions_.push_back(outNA);
 }
 
 void Z80Instructions::addJumpCallReturnInstructions() {
@@ -516,6 +665,21 @@ void Z80Instructions::addJumpCallReturnInstructions() {
     jpHL.cycles = 4;
     instructions_.push_back(jpHL);
     
+    // Conditional JP cc,nn
+    const char* conditions[] = {"NZ", "Z", "NC", "C", "PO", "PE", "P", "M"};
+    const Byte jpCondOpcodes[] = {0xC2, 0xCA, 0xD2, 0xDA, 0xE2, 0xEA, 0xF2, 0xFA};
+    
+    for (int i = 0; i < 8; i++) {
+        InstructionInfo jpCond;
+        jpCond.mnemonic = "JP";
+        jpCond.operandPattern = std::string(conditions[i]) + ",NN";
+        jpCond.mode = AddressingMode::Extended;
+        jpCond.opcodes = {jpCondOpcodes[i]};
+        jpCond.operandBytes = 2;
+        jpCond.cycles = 10;
+        instructions_.push_back(jpCond);
+    }
+    
     // JR e (relative offset)
     InstructionInfo jre;
     jre.mnemonic = "JR";
@@ -536,6 +700,32 @@ void Z80Instructions::addJumpCallReturnInstructions() {
     jrLabel.cycles = 12;
     instructions_.push_back(jrLabel);
     
+    // Conditional JR (only Z, NZ, C, NC)
+    const char* jrConditions[] = {"NZ", "Z", "NC", "C"};
+    const Byte jrCondOpcodes[] = {0x20, 0x28, 0x30, 0x38};
+    
+    for (int i = 0; i < 4; i++) {
+        // With offset E
+        InstructionInfo jrCondE;
+        jrCondE.mnemonic = "JR";
+        jrCondE.operandPattern = std::string(jrConditions[i]) + ",E";
+        jrCondE.mode = AddressingMode::Relative;
+        jrCondE.opcodes = {jrCondOpcodes[i]};
+        jrCondE.operandBytes = 1;
+        jrCondE.cycles = 12;  // 12 if taken, 7 if not
+        instructions_.push_back(jrCondE);
+        
+        // With label (NN) - will be converted to relative
+        InstructionInfo jrCondLabel;
+        jrCondLabel.mnemonic = "JR";
+        jrCondLabel.operandPattern = std::string(jrConditions[i]) + ",NN";
+        jrCondLabel.mode = AddressingMode::Relative;
+        jrCondLabel.opcodes = {jrCondOpcodes[i]};
+        jrCondLabel.operandBytes = 1;
+        jrCondLabel.cycles = 12;
+        instructions_.push_back(jrCondLabel);
+    }
+    
     // CALL nn
     InstructionInfo callnn;
     callnn.mnemonic = "CALL";
@@ -546,6 +736,20 @@ void Z80Instructions::addJumpCallReturnInstructions() {
     callnn.cycles = 17;
     instructions_.push_back(callnn);
     
+    // Conditional CALL cc,nn
+    const Byte callCondOpcodes[] = {0xC4, 0xCC, 0xD4, 0xDC, 0xE4, 0xEC, 0xF4, 0xFC};
+    
+    for (int i = 0; i < 8; i++) {
+        InstructionInfo callCond;
+        callCond.mnemonic = "CALL";
+        callCond.operandPattern = std::string(conditions[i]) + ",NN";
+        callCond.mode = AddressingMode::Extended;
+        callCond.opcodes = {callCondOpcodes[i]};
+        callCond.operandBytes = 2;
+        callCond.cycles = 17;  // 17 if taken, 10 if not
+        instructions_.push_back(callCond);
+    }
+    
     // RET
     InstructionInfo ret;
     ret.mnemonic = "RET";
@@ -555,6 +759,20 @@ void Z80Instructions::addJumpCallReturnInstructions() {
     ret.operandBytes = 0;
     ret.cycles = 10;
     instructions_.push_back(ret);
+    
+    // Conditional RET cc
+    const Byte retCondOpcodes[] = {0xC0, 0xC8, 0xD0, 0xD8, 0xE0, 0xE8, 0xF0, 0xF8};
+    
+    for (int i = 0; i < 8; i++) {
+        InstructionInfo retCond;
+        retCond.mnemonic = "RET";
+        retCond.operandPattern = std::string(conditions[i]);
+        retCond.mode = AddressingMode::Implied;
+        retCond.opcodes = {retCondOpcodes[i]};
+        retCond.operandBytes = 0;
+        retCond.cycles = 11;  // 11 if taken, 5 if not
+        instructions_.push_back(retCond);
+    }
     
     // RST p (0, 8, 16, 24, 32, 40, 48, 56)
     for (int p = 0; p < 8; p++) {
@@ -567,28 +785,6 @@ void Z80Instructions::addJumpCallReturnInstructions() {
         rst.cycles = 11;
         instructions_.push_back(rst);
     }
-}
-
-void Z80Instructions::addIOInstructions() {
-    // IN A,(n)
-    InstructionInfo inAn;
-    inAn.mnemonic = "IN";
-    inAn.operandPattern = "A,(N)";
-    inAn.mode = AddressingMode::Immediate;
-    inAn.opcodes = {0xDB};
-    inAn.operandBytes = 1;
-    inAn.cycles = 11;
-    instructions_.push_back(inAn);
-    
-    // OUT (n),A
-    InstructionInfo outnA;
-    outnA.mnemonic = "OUT";
-    outnA.operandPattern = "(N),A";
-    outnA.mode = AddressingMode::Immediate;
-    outnA.opcodes = {0xD3};
-    outnA.operandBytes = 1;
-    outnA.cycles = 11;
-    instructions_.push_back(outnA);
 }
 
 void Z80Instructions::addMiscInstructions() {
@@ -630,6 +826,121 @@ void Z80Instructions::addMiscInstructions() {
     ei.operandBytes = 0;
     ei.cycles = 4;
     instructions_.push_back(ei);
+    
+    // PUSH and POP for register pairs
+    const char* pushPopRegs[] = {"BC", "DE", "HL", "AF"};
+    const Byte pushOpcodes[] = {0xC5, 0xD5, 0xE5, 0xF5};
+    const Byte popOpcodes[] = {0xC1, 0xD1, 0xE1, 0xF1};
+    
+    for (int i = 0; i < 4; i++) {
+        InstructionInfo push;
+        push.mnemonic = "PUSH";
+        push.operandPattern = pushPopRegs[i];
+        push.mode = AddressingMode::Register;
+        push.opcodes = {pushOpcodes[i]};
+        push.operandBytes = 0;
+        push.cycles = 11;
+        instructions_.push_back(push);
+        
+        InstructionInfo pop;
+        pop.mnemonic = "POP";
+        pop.operandPattern = pushPopRegs[i];
+        pop.mode = AddressingMode::Register;
+        pop.opcodes = {popOpcodes[i]};
+        pop.operandBytes = 0;
+        pop.cycles = 10;
+        instructions_.push_back(pop);
+    }
+    
+    // EX DE,HL
+    InstructionInfo exDEHL;
+    exDEHL.mnemonic = "EX";
+    exDEHL.operandPattern = "DE,HL";
+    exDEHL.mode = AddressingMode::Register;
+    exDEHL.opcodes = {0xEB};
+    exDEHL.operandBytes = 0;
+    exDEHL.cycles = 4;
+    instructions_.push_back(exDEHL);
+    
+    // EX AF,AF'
+    InstructionInfo exAF;
+    exAF.mnemonic = "EX";
+    exAF.operandPattern = "AF,AF'";
+    exAF.mode = AddressingMode::Register;
+    exAF.opcodes = {0x08};
+    exAF.operandBytes = 0;
+    exAF.cycles = 4;
+    instructions_.push_back(exAF);
+    
+    // EX (SP),HL
+    InstructionInfo exSPHL;
+    exSPHL.mnemonic = "EX";
+    exSPHL.operandPattern = "(SP),HL";
+    exSPHL.mode = AddressingMode::RegisterIndirect;
+    exSPHL.opcodes = {0xE3};
+    exSPHL.operandBytes = 0;
+    exSPHL.cycles = 19;
+    instructions_.push_back(exSPHL);
+    
+    // EXX
+    InstructionInfo exx;
+    exx.mnemonic = "EXX";
+    exx.operandPattern = "";
+    exx.mode = AddressingMode::Implied;
+    exx.opcodes = {0xD9};
+    exx.operandBytes = 0;
+    exx.cycles = 4;
+    instructions_.push_back(exx);
+    
+    // DAA (Decimal Adjust Accumulator)
+    InstructionInfo daa;
+    daa.mnemonic = "DAA";
+    daa.operandPattern = "";
+    daa.mode = AddressingMode::Implied;
+    daa.opcodes = {0x27};
+    daa.operandBytes = 0;
+    daa.cycles = 4;
+    instructions_.push_back(daa);
+    
+    // CPL (Complement)
+    InstructionInfo cpl;
+    cpl.mnemonic = "CPL";
+    cpl.operandPattern = "";
+    cpl.mode = AddressingMode::Implied;
+    cpl.opcodes = {0x2F};
+    cpl.operandBytes = 0;
+    cpl.cycles = 4;
+    instructions_.push_back(cpl);
+    
+    // NEG (Negate)
+    InstructionInfo neg;
+    neg.mnemonic = "NEG";
+    neg.operandPattern = "";
+    neg.mode = AddressingMode::Implied;
+    neg.opcodes = {0xED, 0x44};
+    neg.operandBytes = 0;
+    neg.cycles = 8;
+    instructions_.push_back(neg);
+    
+    // CCF (Complement Carry Flag)
+    InstructionInfo ccf;
+    ccf.mnemonic = "CCF";
+    ccf.operandPattern = "";
+    ccf.mode = AddressingMode::Implied;
+    ccf.opcodes = {0x3F};
+    ccf.operandBytes = 0;
+    ccf.cycles = 4;
+    instructions_.push_back(ccf);
+    
+    // SCF (Set Carry Flag)
+    InstructionInfo scf;
+    scf.mnemonic = "SCF";
+    scf.operandPattern = "";
+    scf.mode = AddressingMode::Implied;
+    scf.opcodes = {0x37};
+    scf.operandBytes = 0;
+    scf.cycles = 4;
+    instructions_.push_back(scf);
 }
 
 } // namespace z80

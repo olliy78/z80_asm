@@ -115,7 +115,7 @@ Token Lexer::readIdentifier() {
     
     while (!isAtEnd()) {
         char c = peek();
-        if (std::isalnum(c) || c == '_' || c == '.' || c == '@' || c == '?') {
+        if (std::isalnum(c) || c == '_' || c == '.' || c == '@' || c == '?' || c == '\'') {
             text += advance();
         } else {
             break;

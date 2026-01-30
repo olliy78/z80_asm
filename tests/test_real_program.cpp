@@ -97,5 +97,23 @@ int main() {
     printModuleInfo(*module2);
     std::cout << "\n=== All Tests Passed! ✓ ===" << std::endl;
     
+    // Test 3: Conditional jumps
+    std::cout << "\n--- Test 3: Conditional Jumps ---" << std::endl;
+    
+    auto module3 = assembler.assemble("../examples/test_cond.asm");
+    
+    if (!module3) {
+        std::cout << "\n❌ Assembly FAILED!" << std::endl;
+        std::cout << "\nErrors:" << std::endl;
+        for (const auto& err : assembler.getErrors()) {
+            std::cout << "  Line " << err.line << ": " << err.message << std::endl;
+        }
+        std::cout << "\nConditional jumps not yet implemented." << std::endl;
+        return 1;
+    }
+    
+    printModuleInfo(*module3);
+    std::cout << "\n=== All Tests Passed! ✓ ===" << std::endl;
+    
     return 0;
 }

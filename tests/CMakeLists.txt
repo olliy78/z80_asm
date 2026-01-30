@@ -131,4 +131,20 @@ add_executable(test_real_program
 target_link_libraries(test_real_program PRIVATE z80common)
 target_include_directories(test_real_program PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
+add_executable(test_advanced
+    test_advanced.cpp
+    ../src/assembler/assembler.cpp
+    ../src/assembler/output_writer.cpp
+    ../src/assembler/parser.cpp
+    ../src/assembler/lexer.cpp
+    ../src/assembler/z80_instructions.cpp
+    ../src/assembler/symbol_table.cpp
+    ../src/assembler/expression.cpp
+    ../src/assembler/rel_writer.cpp
+    ../src/assembler/bit_writer.cpp
+)
+
+target_link_libraries(test_advanced PRIVATE z80common)
+target_include_directories(test_advanced PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
 # Integration tests (later with Python)
