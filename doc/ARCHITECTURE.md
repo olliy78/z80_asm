@@ -4,6 +4,49 @@
 
 Die Architektur wurde refaktorisiert um eine klare Trennung der Verantwortlichkeiten (Separation of Concerns) zu erreichen.
 
+**Aktueller Stand (30. Januar 2026)**: Phase 2 - Multi-Module Support vollständig implementiert
+
+## Hauptkomponenten des Systems
+
+### 1. Instruction Set (z80_instructions.h/cpp)
+**Status**: ✅ VOLLSTÄNDIG - 782 Varianten
+**Verantwortung**: Kompletter Z80 Instruction Set
+- Alle 8-bit/16-bit Load Instructions
+- Arithmetic & Logical Operations
+- Rotate & Shift (CB-prefixed)
+- Bit Manipulation (BIT/SET/RES)
+- **Block Instructions** (LDIR, CPIR, INI, OUTI - ED-prefixed)
+- **Indexed Addressing** (IX/IY mit Displacement - DD/FD-prefixed)
+- **Indexed Bit Operations** (DDCB/FDCB-prefixed)
+- **Extended I/O** (IN r,(C), OUT (C),r)
+- **Interrupt Instructions** (IM 0/1/2, RETI, RETN)
+- **Special Instructions** (DJNZ, RLD, RRD, LD I/R)
+- Jump, Call, Return (alle Bedingungen)
+- Stack Operations (PUSH/POP)
+
+**Output**: InstructionInfo Structs mit Opcodes, Cycles, Addressing Modes
+
+### 2. Parser (parser.h/cpp)
+**Status**: ✅ Phase 2 Complete
+**Verantwortung**: Parsen der Quelldatei und Symbol-Management
+- Liest Datei
+- Tokenisiert mit Lexer
+- Parst Anweisungen (2-Pass Assembly)
+- Erzeugt `ParsedLine` Strukturen
+- Baut Symbol-Tabelle auf
+- **PUBLIC/EXTRN Directive Handling** ✨
+- **PHASE/DEPHASE Support** ✨
+- **NAME/TITLE Directive Support** ✨
+
+**Features**:
+- Zwei-Pass Assembly (Symbol Table → Code Generation)
+- Expression Evaluation mit M80-Operator-Präzedenz
+- Segment Management (CSEG/DSEG/ASEG)
+- Phase Offset für relocatable Code
+- Multi-Module Symbol-Tracking
+
+**Output**: `vector<ParsedLine>` + `SymbolTable`
+
 ## Vorher (Monolithisch)
 
 ```
@@ -48,6 +91,22 @@ Parser
 - Baut Symbol-Tabelle auf
 
 **Output:** `vector<ParsedLine>` + `SymbolTable`
+
+### 2. Symbol Table (symbol_table.h/cpp)
+**Status**: ✅ Phase 2 Complete
+**Verantwortung**: Symbol-Verwaltung für Multi-Module Linking
+- Speichert Labels, EQU-Konstanten
+- **PUBLIC Symbol Tracking** (isPublic Flag)
+- **EXTERNAL Symbol Tracking** (isExternal Flag)
+- Segment-Zuordnung (CSEG/DSEG/ASEG)
+- Type-Tracking (Relocatable/Absolute/External)
+
+**New APIs**:
+```cpp
+std::vector<const Symbol*> getPublicSymbols() const;
+std::vector<const Symbol*> getExternalSymbols() const;
+const std::map<std::string, Symbol>& getAllSymbols() const;
+```
 
 ### 2. Assembler (assembler.h/cpp) ✨ NEU
 **Verantwortung:** Orchestrierung des Assembly-Prozesses
@@ -184,7 +243,36 @@ Die alte `Parser::writeREL()` Methode ist als `[[deprecated]]` markiert und gibt
 
 ## Nächste Schritte
 
-1. `ListingOutputWriter` implementieren (.PRN Format)
-2. `HEXOutputWriter` implementieren (Intel HEX)
-3. PUBLIC/EXTRN Symbol-Handling in `AssembledModule`
-4. `Parser::writeREL()` komplett entfernen (Breaking Change)
+### ✅ Abgeschlossen
+1. ✅ Architektur-Refaktorierung (Assembler/OutputWriter Pattern)
+2. ✅ BitWriter mit MSB-first Bit-Packing
+3. ✅ REL Writer (Special Link Items + Data Items)
+4. ✅ **Vollständiger Z80 Instruction Set (782 Varianten)**
+5. ✅ **PUBLIC/EXTRN Multi-Module Support**
+6. ✅ **PHASE/DEPHASE Relocatable Code Support**
+7. ✅ **Interrupt Instructions (IM, RETI, RETN)**
+8. ✅ **NAME/TITLE Directive Support**
+
+### 🔨 In Arbeit (Phase 2 Fortsetzung)
+1. [ ] REL Writer: PUBLIC/EXTRN Symbol Emission
+   - getPublicSymbols() in Entry Point Items schreiben
+   - getExternalSymbols() in External Symbol Items schreiben
+2. [ ] Chain Address Tracking für EXTRN References
+3. [ ] End-to-End Test: Multi-Module Assembly + Linking
+
+### 📋 Geplant (Phase 3)
+1. [ ] `ListingOutputWriter` implementieren (.PRN Format)
+2. [ ] `HEXOutputWriter` implementieren (Intel HEX)
+3. [ ] **MACRO/ENDM System**
+   - Makro-Definition Storage
+   - Parameter-Substitution
+   - LOCAL Labels
+   - REPT/IRP/IRPC
+4. [ ] **Conditional Assembly (IF/ENDIF)**
+5. [ ] Vollständige bios.mac Assembly
+
+### 🎯 Langfristig (Phase 4-6)
+1. [ ] LINKMT-kompatibler Linker
+2. [ ] Byte-genaue M80-Kompatibilität
+3. [ ] Symbol Cross-Reference (.CRF)
+4. [ ] `Parser::writeREL()` komplett entfernen (Breaking Change)

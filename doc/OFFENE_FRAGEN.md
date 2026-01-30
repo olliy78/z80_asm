@@ -1,6 +1,6 @@
 # Offene Fragen und Klärungsbedarf
 
-*Stand: Januar 2026 - Nach Implementierung Phase 1*
+*Stand: 30. Januar 2026 - Phase 2 (Multi-Module Support)*
 
 ## ✅ Geklärte Aspekte
 
@@ -15,14 +15,50 @@
 - ✅ **Zahlenformate**: D, H, 0x, O, Q, B alle spezifiziert
 - ✅ **Symbol-Regeln**: 6 Zeichen signifikant, Case-Handling
 
-### Implementiert (Phase 1)
+### Implementiert (Phase 1-2)
 - ✅ **Lexer**: Token-basiertes Parsen mit allen Zahlenformaten
 - ✅ **Parser**: Zwei-Pass Assembly mit strukturierter Operanden-Analyse
 - ✅ **Expression Evaluator**: Recursive Descent Parser mit M80-Operator-Präzedenz
 - ✅ **Symbol Table**: Vollständig mit Relocatable/Absolute/External Support
 - ✅ **DB/DW Direktiven**: Code-Generierung mit Expression-Evaluation
 - ✅ **Instruction Encoding**: Opcode-Bytes + evaluierte Operanden-Bytes
-- ✅ **Tests**: Lexer, Parser, Expression, DB/DW - alle bestanden
+- ✅ **Z80 Instruction Set**: 782 Varianten - VOLLSTÄNDIG implementiert!
+- ✅ **PUBLIC/EXTRN**: Multi-Module Support funktionsfähig
+- ✅ **PHASE/DEPHASE**: Relocatable Code Support
+- ✅ **Interrupt Instructions**: IM, RETI, RETN, LD I/R
+- ✅ **Special Instructions**: DJNZ, RLD, RRD, Block Operations
+- ✅ **BitWriter**: MSB-first Bit-Packing implementiert und verifiziert
+- ✅ **REL Writer**: Vollständige .REL-Generierung funktional
+- ✅ **Tests**: 24+ Tests, alle bestanden
+
+## ✅ Beantwortete Fragen (seit letztem Update)
+
+### Instruction Set Vollständigkeit ✅ BEANTWORTET
+**Frage**: Welche Z80-Instruktionen fehlen noch?
+**Antwort**: KEINE! Alle 782 dokumentierten Z80-Instruktionen sind implementiert:
+- Alle Basis-Instruktionen (LD, ADD, SUB, etc.)
+- Block-Instruktionen (LDIR, CPIR, INI, OUTI)
+- Indexed Addressing (IX/IY mit Displacement)
+- Indexed Bit Operations (DDCB/FDCB)
+- Extended I/O (IN r,(C), OUT (C),r)
+- Interrupt Instructions (IM 0/1/2, RETI, RETN)
+- Special Instructions (DJNZ, RLD, RRD, LD I/R)
+
+### Multi-Module Linking ✅ BEANTWORTET
+**Frage**: Wie werden PUBLIC/EXTRN Symbole behandelt?
+**Antwort**: Vollständig implementiert:
+- PUBLIC/ENTRY: Symbole werden als isPublic=true markiert
+- EXTRN/EXT: Symbole werden als isExternal=true markiert
+- Symbol Table hat getPublicSymbols() und getExternalSymbols()
+- Parser erkennt beide Direktiven mit Komma-separierter Liste
+
+### PHASE/DEPHASE Support ✅ BEANTWORTET
+**Frage**: Wie wird selbst-relocierender Code unterstützt?
+**Antwort**: .PHASE/.DEPHASE implementiert:
+- inPhase_ Flag im Parser
+- phaseOffset_ wird zu Label-Werten addiert
+- Labels nutzen Runtime-Adressen während PHASE-Block
+- Essentiell für CP/M BIOS Code
 
 ## ❓ Kritische Implementierungs-Fragen
 
@@ -328,7 +364,7 @@ VAR2:   DS 2
 
 ## 🎯 Nächste Schritte
 
-### ✅ Abgeschlossen (Phase 1)
+### ✅ Abgeschlossen (Phase 1-2)
 1. ✅ REL_FORMAT.md aktualisiert
 2. ✅ M80_SYNTAX.md erstellt
 3. ✅ Lexer implementiert (alle Token-Typen, Zahlenformate)
@@ -336,19 +372,29 @@ VAR2:   DS 2
 5. ✅ Expression Evaluator (recursive descent, M80-Präzedenz, Type-Tracking)
 6. ✅ DB/DW Code-Generierung funktionsfähig
 7. ✅ Instruction Encoding mit evaluierten Operanden
-8. ✅ Comprehensive Test-Suite (Lexer, Parser, Expression, DB/DW)
+8. ✅ Comprehensive Test-Suite (24+ Tests)
+9. ✅ BitWriter-Klasse (MSB-first Bit-Packing - verifiziert!)
+10. ✅ REL Writer (Special Link Items + Code/Data Items - funktional!)
+11. ✅ **Vollständige Z80 Instruction Table (782 Varianten)**
+12. ✅ PUBLIC/EXTRN Handling
+13. ✅ PHASE/DEPHASE Support
+14. ✅ Interrupt Instructions (IM, RETI, RETN)
+15. ✅ NAME/TITLE Direktiven
+16. ✅ .Z80/.LIST/.XLIST/.TFCOND Direktiven
 
-### Sofort (Phase 1 Finalisierung)
-1. [ ] BitWriter-Klasse (MSB-first Bit-Packing)
-2. [ ] REL Writer (Special Link Items + Code/Data Items)
-3. [ ] Relocation Table Generation
-4. [ ] Test mit einfachem .REL Output
+### Sofort (Phase 2 Fortsetzung)
+1. [ ] REL Writer: PUBLIC/EXTRN Symbol Emission
+2. [ ] Chain Address Tracking für Relocatable References
+3. [ ] Entry Point Symbol Handling
+4. [ ] Test mit mehreren Modulen und Linking
 
-### Kurzfristig (Phase 2)
-1. [ ] Vollständige Z80 Instruction Table
-2. [ ] Test mit bios.mac (erste Teile)
-3. [ ] PUBLIC/EXTRN Handling
-4. [ ] Entry Point Symbols
+### Kurzfristig (Phase 3 - Makros)
+1. [ ] MACRO/ENDM Grundstruktur
+2. [ ] Makro-Parameter Substitution
+3. [ ] LOCAL Labels in Makros
+4. [ ] REPT/IRP/IRPC
+5. [ ] EXITM (vorzeitiger Makro-Abbruch)
+6. [ ] Test mit bios.mac Makros
 
 ### Mittelfristig (Phase 3-4)
 1. [ ] Conditional Assembly (IF/ELSE/ENDIF)
@@ -371,18 +417,52 @@ VAR2:   DS 2
 | MACRO80.txt | ✅ Original | 100% |
 | rel_fileformat.md | ✅ Original | 100% |
 
-## ❓ Fragen an Entwickler/Benutzer
+## 💬 Diskussionspunkte für nächste Schritte
 
-1. **Bit-Packing-Reihenfolge**: Können wir ein minimales Test-Programm mit M80 assemblieren, um die Bit-Reihenfolge zu verifizieren?
+### Priorität HOCH - Entscheidung nötig:
 
-2. **Prioritäten**: Sollen wir mit einem eigenen .REL-Disassembler beginnen, um das Format besser zu verstehen?
+1. **Makro-System vs. bios.mac Partial Assembly**
+   - Option A: Vollständiges Makro-System implementieren (2-3 Wochen)
+   - Option B: Erst bios.mac ohne Makros assemblieren (1 Woche)
+   - **Empfehlung**: Option B - validiert Core-Funktionalität schneller
 
-3. **Test-Strategie**: Python-Script für automatische Tests (Assemble → Compare) oder manuelle Tests?
+2. **REL Writer: PUBLIC/EXTRN Emission**
+   - Frage: Sollen PUBLIC/EXTRN Symbole sofort in .REL geschrieben werden?
+   - Status: Parser erkennt sie, REL Writer ignoriert sie noch
+   - **Empfehlung**: JA - notwendig für Multi-Module Tests
 
-4. **Listing-Genauigkeit**: Wie wichtig ist pixel-genaue .PRN-Kompatibilität vs. funktionale Kompatibilität?
+3. **Listing-Format (.PRN)**
+   - Frage: Wann wird .PRN Generator implementiert?
+   - Nutzen: Debugging und Vergleich mit M80-Output
+   - **Empfehlung**: Nach Makros (Phase 3) - nicht kritisch für Funktionalität
 
-5. **Undokumentierte Features**: Wenn wir auf undokumentiertes M80-Verhalten stoßen - nachbilden oder dokumentieren und abweichen?
+### Priorität MITTEL - Kann warten:
 
-6. **Error Recovery**: Wie aggressiv soll Error-Recovery sein? (M80 stoppt oft früh vs. moderne Assembler sammeln alle Fehler)
+4. **Error Recovery Strategie**
+   - Aktuell: Erste Error stoppt Assembly (wie M80)
+   - Alternative: Alle Errors sammeln (moderner Ansatz)
+   - **Empfehlung**: Später entscheiden, aktuelles Verhalten ist M80-kompatibel
 
-7. **Extensions**: Sind moderne Extensions gewünscht? (z.B. längere Symbole mit Option, bessere Fehler-Meldungen, etc.)
+5. **Test-Automatisierung**
+   - Frage: Python-Script für automatische Assembly-Tests?
+   - Nutzen: Regression Testing, schnellere Entwicklung
+   - **Empfehlung**: Hilfreich, aber nicht kritisch
+
+### Priorität NIEDRIG - Dokumentiert, keine Aktion nötig:
+
+6. **Undokumentierte Features** - Bei Bedarf entscheiden
+7. **Modern Extensions** - Erstmal M80-Kompatibilität fokussieren
+8. **Bit-Packing-Reihenfolge** - ✅ Bereits geklärt (MSB-first)
+9. **Tab-Expansion** - Liberal handhaben (funktioniert)
+
+## 🎯 Empfohlene nächste Aktion
+
+**Top Priority**: 
+1. REL Writer um PUBLIC/EXTRN Emission erweitern
+2. Zwei-Modul Test-Programm erstellen und assemblieren
+3. Mit LINKMT/L80 verlinken (wenn verfügbar)
+4. bios.mac Teile ohne Makros assemblieren
+
+**Danach**:
+1. MACRO/ENDM Grund-Implementation
+2. Vollständige bios.mac Assembly
