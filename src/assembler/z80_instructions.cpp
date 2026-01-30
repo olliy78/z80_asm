@@ -32,6 +32,7 @@ void Z80Instructions::initializeInstructions() {
     addExtendedIOInstructions();
     addBlockInstructions();
     addIndexedInstructions();
+    addIndexedBitInstructions();
     addMiscInstructions();
 }
 
@@ -1322,6 +1323,69 @@ void Z80Instructions::addExtendedIOInstructions() {
         outCR.operandBytes = 0;
         outCR.cycles = 12;
         instructions_.push_back(outCR);
+    }
+}
+
+void Z80Instructions::addIndexedBitInstructions() {
+    // DDCB/FDCB-prefixed bit operations on (IX+d)/(IY+d)
+    // Format: DD/FD + CB + displacement + opcode
+    // These are 4-byte instructions: prefix + CB + d + opcode
+    
+    const Byte indexPrefix[] = {0xDD, 0xFD};  // IX, IY
+    const char* indexRegs[] = {"IX", "IY"};
+    
+    for (int idx = 0; idx < 2; idx++) {
+        // BIT b,(IX+d) / BIT b,(IY+d)
+        for (int bit = 0; bit < 8; bit++) {
+            InstructionInfo bitIXd;
+            bitIXd.mnemonic = "BIT";
+            bitIXd.operandPattern = std::to_string(bit) + ",(" + std::string(indexRegs[idx]) + "+D)";
+            bitIXd.mode = AddressingMode::Indexed;
+            bitIXd.opcodes = {indexPrefix[idx], 0xCB, 0x00, static_cast<Byte>(0x46 + (bit << 3))};
+            bitIXd.operandBytes = 1;  // Displacement byte
+            bitIXd.cycles = 20;
+            instructions_.push_back(bitIXd);
+        }
+        
+        // SET b,(IX+d) / SET b,(IY+d)
+        for (int bit = 0; bit < 8; bit++) {
+            InstructionInfo setIXd;
+            setIXd.mnemonic = "SET";
+            setIXd.operandPattern = std::to_string(bit) + ",(" + std::string(indexRegs[idx]) + "+D)";
+            setIXd.mode = AddressingMode::Indexed;
+            setIXd.opcodes = {indexPrefix[idx], 0xCB, 0x00, static_cast<Byte>(0xC6 + (bit << 3))};
+            setIXd.operandBytes = 1;
+            setIXd.cycles = 23;
+            instructions_.push_back(setIXd);
+        }
+        
+        // RES b,(IX+d) / RES b,(IY+d)
+        for (int bit = 0; bit < 8; bit++) {
+            InstructionInfo resIXd;
+            resIXd.mnemonic = "RES";
+            resIXd.operandPattern = std::to_string(bit) + ",(" + std::string(indexRegs[idx]) + "+D)";
+            resIXd.mode = AddressingMode::Indexed;
+            resIXd.opcodes = {indexPrefix[idx], 0xCB, 0x00, static_cast<Byte>(0x86 + (bit << 3))};
+            resIXd.operandBytes = 1;
+            resIXd.cycles = 23;
+            instructions_.push_back(resIXd);
+        }
+        
+        // Rotate/Shift instructions on (IX+d)/(IY+d)
+        // RLC, RRC, RL, RR, SLA, SRA, SLL, SRL (IX+d)
+        const char* rotateOps[] = {"RLC", "RRC", "RL", "RR", "SLA", "SRA", "SLL", "SRL"};
+        const Byte rotateBase[] = {0x06, 0x0E, 0x16, 0x1E, 0x26, 0x2E, 0x36, 0x3E};
+        
+        for (int op = 0; op < 8; op++) {
+            InstructionInfo rotIXd;
+            rotIXd.mnemonic = rotateOps[op];
+            rotIXd.operandPattern = "(" + std::string(indexRegs[idx]) + "+D)";
+            rotIXd.mode = AddressingMode::Indexed;
+            rotIXd.opcodes = {indexPrefix[idx], 0xCB, 0x00, rotateBase[op]};
+            rotIXd.operandBytes = 1;
+            rotIXd.cycles = 23;
+            instructions_.push_back(rotIXd);
+        }
     }
 }
 

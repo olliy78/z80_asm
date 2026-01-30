@@ -110,6 +110,9 @@ private:
     /** @brief Add indexed addressing instructions (IX/IY) */
     void addIndexedInstructions();
     
+    /** @brief Add indexed bit manipulation instructions (DDCB/FDCB prefix) */
+    void addIndexedBitInstructions();
+    
     /** @brief Add miscellaneous instructions */
     void addMiscInstructions();
     
