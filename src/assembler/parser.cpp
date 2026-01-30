@@ -251,28 +251,41 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
             }
             else if (next.type == TokenType::Identifier) {
                 // Could be "LABEL MNEM" or "MNEM OPERAND"
-                // Check if first token is a known mnemonic or directive
-                std::string upperToken = token.text;
-                for (char& c : upperToken) c = std::toupper(c);
-                bool isDirective = (upperToken == "ORG" || upperToken == "EQU" || upperToken == "ASET" ||
-                                   upperToken == "DB" || upperToken == "DW" || 
-                                   upperToken == "DS" || upperToken == "END" ||
-                                   upperToken == "PUBLIC" || upperToken == "EXTRN" ||
-                                   upperToken == "ENTRY" || upperToken == "EXT" ||
-                                   upperToken == "NAME" || upperToken == "TITLE" ||
-                                   upperToken == "PHASE" || upperToken == "DEPHASE" ||
-                                   upperToken == ".PHASE" || upperToken == ".DEPHASE" ||
-                                   upperToken == "INCLUDE" ||
-                                   upperToken == "CSEG" || upperToken == "DSEG" || upperToken == "ASEG");
+                // First check if NEXT token is a directive - if so, first token is definitely a label
+                std::string upperNext = next.text;
+                for (char& c : upperNext) c = std::toupper(c);
+                bool nextIsDirective = (upperNext == "EQU" || upperNext == "ASET" ||
+                                       upperNext == "DB" || upperNext == "DW" || upperNext == "DS");
                 
-                if (instructions_.isMnemonic(token.text) || isDirective) {
-                    // It's an instruction or directive, not a label
-                    // Don't consume token, continue to mnemonic parsing
-                } else {
-                    // Assume it's a label followed by mnemonic
+                if (nextIsDirective) {
+                    // First token is a label, next is a directive
                     labelName = token.text;
                     parsedLine.label = labelName;
                     token = lexer.nextToken();
+                } else {
+                    // Check if first token is a known mnemonic or directive
+                    std::string upperToken = token.text;
+                    for (char& c : upperToken) c = std::toupper(c);
+                    bool isDirective = (upperToken == "ORG" || upperToken == "EQU" || upperToken == "ASET" ||
+                                       upperToken == "DB" || upperToken == "DW" || 
+                                       upperToken == "DS" || upperToken == "END" ||
+                                       upperToken == "PUBLIC" || upperToken == "EXTRN" ||
+                                       upperToken == "ENTRY" || upperToken == "EXT" ||
+                                       upperToken == "NAME" || upperToken == "TITLE" ||
+                                       upperToken == "PHASE" || upperToken == "DEPHASE" ||
+                                       upperToken == ".PHASE" || upperToken == ".DEPHASE" ||
+                                       upperToken == "INCLUDE" || upperToken == "PAGE" || upperToken == ".PAGE" ||
+                                       upperToken == "CSEG" || upperToken == "DSEG" || upperToken == "ASEG");
+                    
+                    if (instructions_.isMnemonic(token.text) || isDirective) {
+                        // It's an instruction or directive, not a label
+                        // Don't consume token, continue to mnemonic parsing
+                    } else {
+                        // Assume it's a label followed by mnemonic
+                        labelName = token.text;
+                        parsedLine.label = labelName;
+                        token = lexer.nextToken();
+                    }
                 }
             }
             else if (next.type == TokenType::EndOfLine || next.type == TokenType::EndOfFile) {
@@ -500,6 +513,14 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
                 else if (upperMnemonic == ".LIST" || upperMnemonic == ".XLIST") {
                     // Listing control directives (ignore for now)
                 }
+                else if (upperMnemonic == "PAGE" || upperMnemonic == ".PAGE") {
+                    // Page control directive (ignore for now)
+                    // Skip optional page length parameter
+                    token = lexer.nextToken();
+                    if (token.type == TokenType::Number) {
+                        // Page length specified, just ignore it
+                    }
+                }
                 else if (upperMnemonic == ".TFCOND" || upperMnemonic == ".SFCOND" || upperMnemonic == ".LFCOND") {
                     // Conditional listing directives (ignore for now)
                 }
@@ -588,6 +609,10 @@ bool Parser::pass2(const std::vector<std::string>& sourceLines, const std::strin
         }
         else if (upperMnemonic == "ASET") {
             // ASET handled in pass 1
+            continue;
+        }
+        else if (upperMnemonic == "PAGE" || upperMnemonic == ".PAGE") {
+            // PAGE directive (listing control, ignore in pass 2)
             continue;
         }
         else if (upperMnemonic == "DB") {
