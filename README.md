@@ -83,15 +83,34 @@ Entwicklung eines Assemblers, der exakt das gleiche binäre Ausgabeformat (.REL)
   - EXTRN/EXT directive (import symbols)
   - NAME/TITLE directive (module naming)
   - Symbol table tracks public/external flags
+  - **REL Writer emits PUBLIC/EXTRN symbols** ✨
+  - Entry Point items for exported symbols
+  - Chain External items for imported symbols
 
-### In Arbeit (Phase 2)
-- [ ] REL Writer integration for PUBLIC/EXTRN symbols
-- [ ] Chain Address Tracking bei Relocatable References
+✅ **Phase 2: Multi-Module & Macros - ABGESCHLOSSEN** 🎉
+
+- [x] **MACRO System (Vollständig)** ✨
+  - MACRO/ENDM - User-defined macros with parameters
+  - Parameter substitution (&param)
+  - LOCAL labels with unique generation (??0001, ??0002)
+  - REPT - Repeat blocks
+  - IRP - Indefinite repeat over argument list
+  - IRPC - Indefinite repeat over character string
+  - EXITM - Early exit from macro
+  - Nested macros (up to 100 levels)
+  - ~850 lines of macro infrastructure
+- [x] **REL Writer PUBLIC/EXTRN Emission** ✨
+  - Emits Entry Point items for PUBLIC symbols
+  - Emits Chain External items for EXTRN symbols
+  - Correct segment type determination (CSEG/DSEG/ASEG)
+
+### In Arbeit (Phase 3)
+- [ ] Conditional Assembly (IF/ELSE/ENDIF)
+- [ ] Chain Address Tracking for relocatable references
 
 ### Geplant
 - [ ] .PRN Listing Generator
-- [ ] Makro-System (Phase 3)
-- [ ] bios.mac Assembly (Validation)
+- [ ] bios.mac Complete Assembly (Validation)
 
 ## Build-Anleitung
 
