@@ -19,6 +19,7 @@
 #include "lexer.h"
 #include "symbol_table.h"
 #include "z80_instructions.h"
+#include "rel_writer.h"
 #include "errors.h"
 
 namespace z80 {
@@ -86,6 +87,16 @@ public:
      * @return true if errors occurred
      */
     bool hasErrors() const { return !errors_.empty(); }
+    
+    /**
+     * @brief Write assembled output to .REL file
+     * @param filename Output .REL filename
+     * @param moduleName Module name (optional, derived from filename if empty)
+     * @return true if successful
+     * @deprecated Use Assembler + RELOutputWriter instead for better separation of concerns
+     */
+    [[deprecated("Use Assembler + RELOutputWriter instead")]]
+    bool writeREL(const std::string& filename, const std::string& moduleName = "");
     
 private:
     /**

@@ -24,6 +24,8 @@ add_executable(test_parser
     ../src/assembler/z80_instructions.cpp
     ../src/assembler/symbol_table.cpp
     ../src/assembler/expression.cpp
+    ../src/assembler/rel_writer.cpp
+    ../src/assembler/bit_writer.cpp
 )
 
 target_link_libraries(test_parser PRIVATE z80common)
@@ -36,6 +38,8 @@ add_executable(test_parser_advanced
     ../src/assembler/z80_instructions.cpp
     ../src/assembler/symbol_table.cpp
     ../src/assembler/expression.cpp
+    ../src/assembler/rel_writer.cpp
+    ../src/assembler/bit_writer.cpp
 )
 
 target_link_libraries(test_parser_advanced PRIVATE z80common)
@@ -57,6 +61,8 @@ add_executable(test_db_dw
     ../src/assembler/z80_instructions.cpp
     ../src/assembler/symbol_table.cpp
     ../src/assembler/expression.cpp
+    ../src/assembler/rel_writer.cpp
+    ../src/assembler/bit_writer.cpp
 )
 
 target_link_libraries(test_db_dw PRIVATE z80common)
@@ -78,5 +84,51 @@ add_executable(test_rel_writer
 
 target_link_libraries(test_rel_writer PRIVATE z80common)
 target_include_directories(test_rel_writer PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_executable(test_rel_output
+    test_rel_output.cpp
+    ../src/assembler/parser.cpp
+    ../src/assembler/lexer.cpp
+    ../src/assembler/z80_instructions.cpp
+    ../src/assembler/symbol_table.cpp
+    ../src/assembler/expression.cpp
+    ../src/assembler/rel_writer.cpp
+    ../src/assembler/bit_writer.cpp
+)
+
+target_link_libraries(test_rel_output PRIVATE z80common)
+target_include_directories(test_rel_output PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_executable(test_assembler_architecture
+    test_assembler_architecture.cpp
+    ../src/assembler/assembler.cpp
+    ../src/assembler/output_writer.cpp
+    ../src/assembler/parser.cpp
+    ../src/assembler/lexer.cpp
+    ../src/assembler/z80_instructions.cpp
+    ../src/assembler/symbol_table.cpp
+    ../src/assembler/expression.cpp
+    ../src/assembler/rel_writer.cpp
+    ../src/assembler/bit_writer.cpp
+)
+
+target_link_libraries(test_assembler_architecture PRIVATE z80common)
+target_include_directories(test_assembler_architecture PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_executable(test_real_program
+    test_real_program.cpp
+    ../src/assembler/assembler.cpp
+    ../src/assembler/output_writer.cpp
+    ../src/assembler/parser.cpp
+    ../src/assembler/lexer.cpp
+    ../src/assembler/z80_instructions.cpp
+    ../src/assembler/symbol_table.cpp
+    ../src/assembler/expression.cpp
+    ../src/assembler/rel_writer.cpp
+    ../src/assembler/bit_writer.cpp
+)
+
+target_link_libraries(test_real_program PRIVATE z80common)
+target_include_directories(test_real_program PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 # Integration tests (later with Python)

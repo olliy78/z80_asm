@@ -71,12 +71,13 @@ bool Z80Instructions::isMnemonic(const std::string& name) const {
 
 void Z80Instructions::addLoad8BitInstructions() {
     // LD r,r' (r = A,B,C,D,E,H,L; r' = A,B,C,D,E,H,L)
-    const char* regs = "ABCDEHL";
+    const char* regs = "BCDEHL_A";  // Z80 register encoding order (bit position 6 is (HL))
     Byte baseOpcode = 0x40;
     
-    for (int dst = 0; dst < 7; dst++) {
-        for (int src = 0; src < 7; src++) {
+    for (int dst = 0; dst < 8; dst++) {
+        for (int src = 0; src < 8; src++) {
             if (dst == 6 && src == 6) continue; // Skip LD (HL),(HL) - that's HALT
+            if (dst == 6 || src == 6) continue; // Skip (HL) for now - handle separately
             
             InstructionInfo info;
             info.mnemonic = "LD";
@@ -84,27 +85,28 @@ void Z80Instructions::addLoad8BitInstructions() {
             info.mode = AddressingMode::Register;
             info.opcodes = {static_cast<Byte>(baseOpcode + (dst << 3) + src)};
             info.operandBytes = 0;
-            info.cycles = (dst == 6 || src == 6) ? 7 : 4;
+            info.cycles = 4;
             instructions_.push_back(info);
         }
     }
     
-    // LD r,n (r = A,B,C,D,E,H,L)
+    // LD r,n (r = B,C,D,E,H,L,A)
     baseOpcode = 0x06;
-    for (int reg = 0; reg < 7; reg++) {
+    for (int reg = 0; reg < 8; reg++) {
+        if (reg == 6) continue; // Skip (HL) position
         InstructionInfo info;
         info.mnemonic = "LD";
         info.operandPattern = std::string(1, regs[reg]) + ",N";
         info.mode = AddressingMode::Immediate;
         info.opcodes = {static_cast<Byte>(baseOpcode + (reg << 3))};
         info.operandBytes = 1;
-        info.cycles = reg == 6 ? 10 : 7;
+        info.cycles = 7;
         instructions_.push_back(info);
     }
     
     // LD r,(HL) and LD (HL),r
     baseOpcode = 0x46;
-    for (int reg = 0; reg < 7; reg++) {
+    for (int reg = 0; reg < 8; reg++) {
         if (reg == 6) continue; // Skip (HL),(HL)
         
         // LD r,(HL)
@@ -311,21 +313,36 @@ void Z80Instructions::addArithmeticInstructions() {
     // ADD, ADC, SUB, SBC, AND, XOR, OR, CP with register
     const char* mnemonics[] = {"ADD", "ADC", "SUB", "SBC", "AND", "XOR", "OR", "CP"};
     const Byte opcodes[] = {0x80, 0x88, 0x90, 0x98, 0xA0, 0xA8, 0xB0, 0xB8};
-    const char* regs = "ABCDEHL";
+    const char* regs = "BCDEHL_A";  // Z80 encoding order
     
     for (int op = 0; op < 8; op++) {
-        for (int reg = 0; reg < 7; reg++) {
+        for (int reg = 0; reg < 8; reg++) {
+            if (reg == 6) continue; // (HL) handled separately
+            
+            // Explicit A,r form
             InstructionInfo info;
             info.mnemonic = mnemonics[op];
             info.operandPattern = "A," + std::string(1, regs[reg]);
             info.mode = AddressingMode::Register;
             info.opcodes = {static_cast<Byte>(opcodes[op] + reg)};
             info.operandBytes = 0;
-            info.cycles = reg == 6 ? 7 : 4;
+            info.cycles = 4;
             instructions_.push_back(info);
+            
+            // Implicit A (just "r" form) - same opcode
+            if (op >= 2) { // SUB, SBC, AND, XOR, OR, CP support implicit A
+                InstructionInfo infoImplicit;
+                infoImplicit.mnemonic = mnemonics[op];
+                infoImplicit.operandPattern = std::string(1, regs[reg]);
+                infoImplicit.mode = AddressingMode::Register;
+                infoImplicit.opcodes = {static_cast<Byte>(opcodes[op] + reg)};
+                infoImplicit.operandBytes = 0;
+                infoImplicit.cycles = 4;
+                instructions_.push_back(infoImplicit);
+            }
         }
         
-        // With (HL)
+        // With (HL) - explicit A
         InstructionInfo infoHL;
         infoHL.mnemonic = mnemonics[op];
         infoHL.operandPattern = "A,(HL)";
@@ -335,7 +352,19 @@ void Z80Instructions::addArithmeticInstructions() {
         infoHL.cycles = 7;
         instructions_.push_back(infoHL);
         
-        // With immediate
+        // With (HL) - implicit A
+        if (op >= 2) {
+            InstructionInfo infoHLImplicit;
+            infoHLImplicit.mnemonic = mnemonics[op];
+            infoHLImplicit.operandPattern = "(HL)";
+            infoHLImplicit.mode = AddressingMode::RegisterIndirect;
+            infoHLImplicit.opcodes = {static_cast<Byte>(opcodes[op] + 6)};
+            infoHLImplicit.operandBytes = 0;
+            infoHLImplicit.cycles = 7;
+            instructions_.push_back(infoHLImplicit);
+        }
+        
+        // With immediate - explicit A
         InstructionInfo infoImm;
         infoImm.mnemonic = mnemonics[op];
         infoImm.operandPattern = "A,N";
@@ -344,6 +373,18 @@ void Z80Instructions::addArithmeticInstructions() {
         infoImm.operandBytes = 1;
         infoImm.cycles = 7;
         instructions_.push_back(infoImm);
+        
+        // With immediate - implicit A
+        if (op >= 2) {
+            InstructionInfo infoImmImplicit;
+            infoImmImplicit.mnemonic = mnemonics[op];
+            infoImmImplicit.operandPattern = "N";
+            infoImmImplicit.mode = AddressingMode::Immediate;
+            infoImmImplicit.opcodes = {static_cast<Byte>(opcodes[op] + 0x46)};
+            infoImmImplicit.operandBytes = 1;
+            infoImmImplicit.cycles = 7;
+            instructions_.push_back(infoImmImplicit);
+        }
     }
     
     // INC and DEC register
@@ -475,7 +516,7 @@ void Z80Instructions::addJumpCallReturnInstructions() {
     jpHL.cycles = 4;
     instructions_.push_back(jpHL);
     
-    // JR e
+    // JR e (relative offset)
     InstructionInfo jre;
     jre.mnemonic = "JR";
     jre.operandPattern = "E";
@@ -484,6 +525,16 @@ void Z80Instructions::addJumpCallReturnInstructions() {
     jre.operandBytes = 1;
     jre.cycles = 12;
     instructions_.push_back(jre);
+    
+    // JR nn (label - will be converted to relative in code generation)
+    InstructionInfo jrLabel;
+    jrLabel.mnemonic = "JR";
+    jrLabel.operandPattern = "NN";
+    jrLabel.mode = AddressingMode::Relative;
+    jrLabel.opcodes = {0x18};
+    jrLabel.operandBytes = 1;
+    jrLabel.cycles = 12;
+    instructions_.push_back(jrLabel);
     
     // CALL nn
     InstructionInfo callnn;

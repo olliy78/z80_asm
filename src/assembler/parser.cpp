@@ -96,9 +96,17 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
             }
             else if (next.type == TokenType::Identifier) {
                 // Could be "LABEL MNEM" or "MNEM OPERAND"
-                // Check if first token is a known mnemonic
-                if (instructions_.isMnemonic(token.text)) {
-                    // It's an instruction, not a label
+                // Check if first token is a known mnemonic or directive
+                std::string upperToken = token.text;
+                for (char& c : upperToken) c = std::toupper(c);
+                bool isDirective = (upperToken == "ORG" || upperToken == "EQU" || 
+                                   upperToken == "DB" || upperToken == "DW" || 
+                                   upperToken == "DS" || upperToken == "END" ||
+                                   upperToken == "PUBLIC" || upperToken == "EXTRN" ||
+                                   upperToken == "CSEG" || upperToken == "DSEG" || upperToken == "ASEG");
+                
+                if (instructions_.isMnemonic(token.text) || isDirective) {
+                    // It's an instruction or directive, not a label
                     // Don't consume token, continue to mnemonic parsing
                 } else {
                     // Assume it's a label followed by mnemonic
@@ -280,6 +288,17 @@ bool Parser::generateDB(ParsedLine& line, const std::string& filename) {
     ExpressionEvaluator eval(symbolTable_, locationCounter_, currentSegment_);
     
     for (const std::string& operand : line.operands) {
+        // Check if operand is a string literal (enclosed in quotes)
+        if ((operand.length() >= 2 && operand[0] == '\'' && operand[operand.length()-1] == '\'') ||
+            (operand.length() >= 2 && operand[0] == '"' && operand[operand.length()-1] == '"')) {
+            // String literal - add each character as a byte
+            for (size_t i = 1; i < operand.length() - 1; i++) {
+                line.code.push_back(static_cast<Byte>(operand[i]));
+            }
+            continue;
+        }
+        
+        // Otherwise, evaluate as expression
         ExpressionResult result = eval.evaluate(operand);
         
         if (!result.valid) {
@@ -390,7 +409,30 @@ bool Parser::generateInstruction(ParsedLine& line, const std::string& filename) 
                 // Store operand bytes
                 if (info->operandBytes == 1) {
                     // 8-bit immediate or displacement
-                    line.code.push_back(static_cast<Byte>(result.value & 0xFF));
+                    Byte byteVal = static_cast<Byte>(result.value & 0xFF);
+                    
+                    // Special handling for JR instruction (relative addressing)
+                    if (line.mnemonic == "JR" || line.mnemonic == "jr") {
+                        // Calculate relative offset: target - (PC after instruction)
+                        // PC after JR instruction = current address + 2
+                        int32_t offset = result.value - (line.address + 2);
+                        
+                        // Check if offset is in range for relative jump (-128 to +127)
+                        if (offset < -128 || offset > 127) {
+                            AssemblyError err;
+                            err.level = ErrorLevel::Error;
+                            err.message = "JR offset out of range (" + std::to_string(offset) + 
+                                        " bytes, must be -128 to +127)";
+                            err.filename = filename;
+                            err.line = line.lineNumber;
+                            errors_.push_back(err);
+                            return false;
+                        }
+                        
+                        byteVal = static_cast<Byte>(offset & 0xFF);
+                    }
+                    
+                    line.code.push_back(byteVal);
                 } else if (info->operandBytes == 2) {
                     // 16-bit address in little-endian
                     line.code.push_back(static_cast<Byte>(result.value & 0xFF));
@@ -445,6 +487,9 @@ std::string Parser::parseOperands(Lexer& lexer, std::vector<std::string>& operan
             } else if (token.type == TokenType::RightParen || token.type == TokenType::RightBracket) {
                 parenDepth--;
                 currentOperand += token.text;
+            } else if (token.type == TokenType::String) {
+                // Preserve string with quotes for later detection
+                currentOperand += "'" + token.text + "'";
             } else {
                 currentOperand += token.text;
             }
@@ -477,7 +522,35 @@ const InstructionInfo* Parser::findInstructionVariant(const std::string& mnemoni
         pattern += operandToPattern(operands[i]);
     }
     
-    return instructions_.findInstruction(mnemonic, pattern);
+    // Try to find instruction with this pattern
+    auto* inst = instructions_.findInstruction(mnemonic, pattern);
+    if (inst) return inst;
+    
+    // If not found and pattern contains N (8-bit), try NN (16-bit) instead
+    // This handles cases like CALL 5 where 5 is 8-bit but needs 16-bit address
+    if (pattern.find(",N") != std::string::npos || pattern == "N") {
+        std::string pattern16 = pattern;
+        // Replace all standalone N with NN (but not in (NN) or other contexts)
+        size_t pos = 0;
+        while ((pos = pattern16.find(",N", pos)) != std::string::npos) {
+            if (pos + 2 >= pattern16.length() || pattern16[pos + 2] != 'N') {
+                pattern16.insert(pos + 1, "N");
+                pos += 3;
+            } else {
+                pos += 2;
+            }
+        }
+        // Check if pattern starts with N
+        if (pattern16.length() >= 1 && pattern16[0] == 'N' && 
+            (pattern16.length() == 1 || pattern16[1] != 'N')) {
+            pattern16 = "N" + pattern16;
+        }
+        
+        inst = instructions_.findInstruction(mnemonic, pattern16);
+        if (inst) return inst;
+    }
+    
+    return nullptr;
 }
 
 std::string Parser::operandToPattern(const std::string& operand) {
@@ -533,16 +606,16 @@ std::string Parser::operandToPattern(const std::string& operand) {
     if (parseNumber(operand, value, base)) {
         // Determine size based on value
         if (value >= -128 && value <= 255) {
-            // Could be 8-bit, but context matters
-            // For now, return NN and let instruction matching decide
-            // A better approach would be to try both N and NN patterns
-            return "NN";  // Conservative: assume 16-bit
+            // 8-bit value - return N for immediate 8-bit
+            return "N";
         }
+        // 16-bit value
         return "NN";
     }
     
     // Unknown - likely a symbol or forward reference
-    // Assume 16-bit address
+    // We need to try both patterns (N and NN) depending on context
+    // For now, prefer NN (addresses are more common)
     return "NN";
 }
 
@@ -558,6 +631,120 @@ const std::vector<AssemblyError>& Parser::getErrors() const {
 
 const SymbolTable& Parser::getSymbolTable() const {
     return symbolTable_;
+}
+
+bool Parser::writeREL(const std::string& filename, const std::string& moduleName) {
+    RELWriter writer;
+    
+    // Derive module name from filename if not provided
+    std::string modName = moduleName;
+    if (modName.empty()) {
+        // Extract basename without extension
+        size_t lastSlash = filename.find_last_of("/\\");
+        size_t lastDot = filename.find_last_of('.');
+        size_t start = (lastSlash == std::string::npos) ? 0 : lastSlash + 1;
+        size_t end = (lastDot == std::string::npos) ? filename.length() : lastDot;
+        modName = filename.substr(start, end - start);
+    }
+    
+    // Determine if module is relocatable (has CSEG or DSEG code)
+    bool isRelocatable = false;
+    for (const auto& line : lines_) {
+        if (!line.code.empty()) {
+            if (line.segment == SegmentType::CSEG || line.segment == SegmentType::DSEG) {
+                isRelocatable = true;
+                break;
+            }
+        }
+    }
+    
+    // Begin module
+    writer.beginModule(modName, isRelocatable);
+    
+    // Calculate segment sizes
+    Address csegSize = 0, dsegSize = 0;
+    for (const auto& line : lines_) {
+        if (!line.code.empty()) {
+            if (line.segment == SegmentType::CSEG) {
+                Address endAddr = line.address + line.code.size();
+                if (endAddr > csegSize) csegSize = endAddr;
+            } else if (line.segment == SegmentType::DSEG) {
+                Address endAddr = line.address + line.code.size();
+                if (endAddr > dsegSize) csegSize = endAddr;
+            }
+        }
+    }
+    
+    // Write sizes
+    if (csegSize > 0) {
+        writer.writeProgramSize(csegSize);
+    }
+    if (dsegSize > 0) {
+        writer.writeDataSize(dsegSize);
+    }
+    
+    // Write code/data by segment
+    // Group consecutive bytes by segment
+    std::vector<Byte> currentData;
+    SegmentType currentSegType = SegmentType::CSEG;
+    Address currentAddr = 0;
+    bool hasData = false;
+    
+    for (const auto& line : lines_) {
+        if (line.code.empty()) continue;
+        
+        // If segment changed or address is not continuous, flush current data
+        if (hasData && (line.segment != currentSegType || line.address != currentAddr)) {
+            // Write accumulated data
+            if (currentSegType == SegmentType::ASEG) {
+                writer.writeAbsoluteData(currentData);
+            } else if (currentSegType == SegmentType::CSEG) {
+                writer.writeProgramData(currentData);
+            } else if (currentSegType == SegmentType::DSEG) {
+                writer.writeDataData(currentData);
+            }
+            currentData.clear();
+            hasData = false;
+        }
+        
+        // If starting new segment, set location
+        if (!hasData) {
+            ItemType locType = ItemType::Absolute;
+            if (line.segment == SegmentType::CSEG) {
+                locType = ItemType::ProgramRel;
+            } else if (line.segment == SegmentType::DSEG) {
+                locType = ItemType::DataRel;
+            }
+            writer.setLocation(line.address, locType);
+            currentSegType = line.segment;
+            currentAddr = line.address;
+        }
+        
+        // Accumulate bytes
+        for (Byte b : line.code) {
+            currentData.push_back(b);
+        }
+        currentAddr += line.code.size();
+        hasData = true;
+    }
+    
+    // Flush remaining data
+    if (hasData) {
+        if (currentSegType == SegmentType::ASEG) {
+            writer.writeAbsoluteData(currentData);
+        } else if (currentSegType == SegmentType::CSEG) {
+            writer.writeProgramData(currentData);
+        } else if (currentSegType == SegmentType::DSEG) {
+            writer.writeDataData(currentData);
+        }
+    }
+    
+    // End module and file
+    writer.endModule();
+    writer.endFile();
+    
+    // Write to file
+    return writer.writeToFile(filename);
 }
 
 } // namespace z80

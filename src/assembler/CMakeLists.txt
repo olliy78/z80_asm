@@ -3,12 +3,15 @@ add_executable(m80
     main.cpp
     lexer.cpp
     parser.cpp
+    assembler.cpp
+    output_writer.cpp
     preprocessor.cpp
     z80_instructions.cpp
     symbol_table.cpp
     expression.cpp
     listing.cpp
     rel_writer.cpp
+    bit_writer.cpp
     errors.cpp
 )
 
