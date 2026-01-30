@@ -62,7 +62,7 @@ Entwicklung eines Assemblers, der exakt das gleiche binäre Ausgabeformat (.REL)
   - BitWriter Tests (9 Testfälle, **gegen bios.rel validiert**)
   - REL Writer Tests (6 Testfälle, **BIOSMO Header Match**)
   - **End-to-End Tests (.REL-Generierung funktional)**
-- [x] **Z80 Instruction Set (769 variants)** ✨
+- [x] **Z80 Instruction Set (769 variants - VOLLSTÄNDIG)** ✨
   - 8-bit & 16-bit Load Instructions
   - Arithmetic & Logical Instructions
   - Rotate & Shift Instructions (CB prefix)
@@ -76,9 +76,14 @@ Entwicklung eines Assemblers, der exakt das gleiche binäre Ausgabeformat (.REL)
   - **Extended I/O** (IN r,(C), OUT (C),r)
   - I/O Instructions (IN/OUT)
   - Special Instructions (NOP, HALT, DI, EI, etc.)
+- [x] **Multi-Module Support** ✨
+  - PUBLIC/ENTRY directive (export symbols)
+  - EXTRN/EXT directive (import symbols)
+  - NAME/TITLE directive (module naming)
+  - Symbol table tracks public/external flags
 
 ### In Arbeit (Phase 2)
-- [ ] PUBLIC/EXTRN Direktiven-Handling im Parser
+- [ ] REL Writer integration for PUBLIC/EXTRN symbols
 - [ ] Chain Address Tracking bei Relocatable References
 
 ### Geplant
@@ -216,7 +221,8 @@ Siehe [PROJEKT_PLANUNG.md](doc/PROJEKT_PLANUNG.md) für detaillierte Information
 - [x] CSEG/DSEG/ASEG (Segments)
 - [x] Expressions mit M80-kompatiblen Operatoren
 - [x] Location Counter ($)
-- [ ] PUBLIC/EXTRN (geplant)
+- [x] **PUBLIC/EXTRN (Multi-Module Support)** ✨
+- [x] **NAME/TITLE (Module Naming)** ✨
 - [ ] MACRO/ENDM (Phase 3)
 - [ ] IF/ELSE/ENDIF (Phase 3)
 
