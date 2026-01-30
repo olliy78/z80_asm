@@ -855,6 +855,48 @@ bool Parser::writeREL(const std::string& filename, const std::string& moduleName
         writer.writeDataSize(dsegSize);
     }
     
+    // Write PUBLIC symbols (Entry Points)
+    auto publicSymbols = symbolTable_.getPublicSymbols();
+    for (const Symbol* sym : publicSymbols) {
+        // Find symbol name from symbol table
+        std::string symbolName;
+        for (const auto& pair : symbolTable_.getAllSymbols()) {
+            if (&pair.second == sym) {
+                symbolName = pair.first;
+                break;
+            }
+        }
+        
+        if (symbolName.empty()) continue;
+        
+        // Determine item type based on segment
+        ItemType itemType = ItemType::Absolute;
+        if (sym->segment == SegmentType::CSEG) {
+            itemType = ItemType::ProgramRel;
+        } else if (sym->segment == SegmentType::DSEG) {
+            itemType = ItemType::DataRel;
+        }
+        
+        writer.writeEntrySymbol(symbolName, sym->value, itemType);
+    }
+    
+    // Write EXTERNAL symbols (Chain Externals)
+    auto externalSymbols = symbolTable_.getExternalSymbols();
+    for (const Symbol* sym : externalSymbols) {
+        // Find symbol name from symbol table
+        std::string symbolName;
+        for (const auto& pair : symbolTable_.getAllSymbols()) {
+            if (&pair.second == sym) {
+                symbolName = pair.first;
+                break;
+            }
+        }
+        
+        if (symbolName.empty()) continue;
+        
+        writer.writeChainExternal(symbolName);
+    }
+    
     // Write code/data by segment
     // Group consecutive bytes by segment
     std::vector<Byte> currentData;
