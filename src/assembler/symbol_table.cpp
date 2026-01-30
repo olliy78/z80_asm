@@ -37,4 +37,24 @@ const Symbol* SymbolTable::getSymbol(const std::string& name) const {
     return nullptr;
 }
 
+std::vector<const Symbol*> SymbolTable::getPublicSymbols() const {
+    std::vector<const Symbol*> publicSymbols;
+    for (const auto& pair : symbols_) {
+        if (pair.second.isPublic && pair.second.defined) {
+            publicSymbols.push_back(&pair.second);
+        }
+    }
+    return publicSymbols;
+}
+
+std::vector<const Symbol*> SymbolTable::getExternalSymbols() const {
+    std::vector<const Symbol*> externalSymbols;
+    for (const auto& pair : symbols_) {
+        if (pair.second.isExternal) {
+            externalSymbols.push_back(&pair.second);
+        }
+    }
+    return externalSymbols;
+}
+
 } // namespace z80

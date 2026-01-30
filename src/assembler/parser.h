@@ -180,6 +180,7 @@ private:
     Address csegOrigin_;                ///< CSEG origin
     Address dsegOrigin_;                ///< DSEG origin
     Address asegOrigin_;                ///< ASEG origin
+    std::string moduleName_;            ///< Module name (from NAME/TITLE directive)
 };
 
 } // namespace z80

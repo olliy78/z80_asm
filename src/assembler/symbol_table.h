@@ -62,6 +62,24 @@ public:
      */
     const Symbol* getSymbol(const std::string& name) const;
     
+    /**
+     * @brief Get all PUBLIC symbols
+     * @return Vector of public symbols
+     */
+    std::vector<const Symbol*> getPublicSymbols() const;
+    
+    /**
+     * @brief Get all EXTERNAL symbols
+     * @return Vector of external symbols
+     */
+    std::vector<const Symbol*> getExternalSymbols() const;
+    
+    /**
+     * @brief Get all symbols (for iteration)
+     * @return Const reference to symbol map
+     */
+    const std::map<std::string, Symbol>& getAllSymbols() const { return symbols_; }
+    
 private:
     std::map<std::string, Symbol> symbols_;  ///< Map of symbol names to data
 };

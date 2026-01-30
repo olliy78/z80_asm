@@ -18,6 +18,7 @@ Parser::Parser()
     , csegOrigin_(0)
     , dsegOrigin_(0)
     , asegOrigin_(0)
+    , moduleName_("")
 {
 }
 
@@ -151,6 +152,60 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
                     symbolTable_.addSymbol(labelName, sym);
                 }
             }
+            else if (upperMnemonic == "PUBLIC" || upperMnemonic == "ENTRY") {
+                // PUBLIC/ENTRY: Mark symbols as exported
+                // Format: PUBLIC symbol1, symbol2, ...
+                token = lexer.nextToken();
+                while (token.type == TokenType::Identifier) {
+                    std::string symbolName = token.text;
+                    // Mark symbol as public (create if doesn't exist yet)
+                    Symbol* sym = symbolTable_.getSymbol(symbolName);
+                    if (sym) {
+                        sym->isPublic = true;
+                    } else {
+                        // Create forward reference
+                        Symbol newSym;
+                        newSym.type = SymbolType::Label;
+                        newSym.value = 0;
+                        newSym.defined = false;
+                        newSym.isPublic = true;
+                        newSym.segment = currentSegment_;
+                        newSym.definedLine = lineNum;
+                        symbolTable_.addSymbol(symbolName, newSym);
+                    }
+                    
+                    token = lexer.nextToken();
+                    if (token.type == TokenType::Comma) {
+                        token = lexer.nextToken();  // Skip comma
+                    } else {
+                        break;
+                    }
+                }
+            }
+            else if (upperMnemonic == "EXTRN" || upperMnemonic == "EXT") {
+                // EXTRN/EXT: Mark symbols as external (imported)
+                // Format: EXTRN symbol1, symbol2, ...
+                token = lexer.nextToken();
+                while (token.type == TokenType::Identifier) {
+                    std::string symbolName = token.text;
+                    // Create external symbol
+                    Symbol sym;
+                    sym.type = SymbolType::Label;
+                    sym.value = 0;
+                    sym.defined = false;
+                    sym.isExternal = true;
+                    sym.segment = SegmentType::ASEG;  // External symbols are absolute
+                    sym.definedLine = lineNum;
+                    symbolTable_.addSymbol(symbolName, sym);
+                    
+                    token = lexer.nextToken();
+                    if (token.type == TokenType::Comma) {
+                        token = lexer.nextToken();  // Skip comma
+                    } else {
+                        break;
+                    }
+                }
+            }
             else {
                 // For all other directives and instructions, add label if present
                 if (!labelName.empty()) {
@@ -195,6 +250,22 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
                 else if (upperMnemonic == "ASEG") {
                     currentSegment_ = SegmentType::ASEG;
                     locationCounter_ = asegOrigin_;
+                }
+                else if (upperMnemonic == "NAME" || upperMnemonic == "TITLE") {
+                    // NAME/TITLE: Set module name
+                    token = lexer.nextToken();
+                    if (token.type == TokenType::Identifier || token.type == TokenType::String) {
+                        moduleName_ = token.text;
+                    }
+                }
+                else if (upperMnemonic == ".Z80") {
+                    // .Z80: Enable Z80 instruction set (default, ignore)
+                }
+                else if (upperMnemonic == ".8080") {
+                    // .8080: Enable 8080 instruction set (not supported, warn?)
+                }
+                else if (upperMnemonic == ".LIST" || upperMnemonic == ".XLIST") {
+                    // Listing control directives (ignore for now)
                 }
                 else if (upperMnemonic == "END") {
                     // Stop parsing
