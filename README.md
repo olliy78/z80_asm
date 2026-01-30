@@ -103,13 +103,21 @@ Entwicklung eines Assemblers, der exakt das gleiche binäre Ausgabeformat (.REL)
   - Emits Entry Point items for PUBLIC symbols
   - Emits Chain External items for EXTRN symbols
   - Correct segment type determination (CSEG/DSEG/ASEG)
+- [x] **.PRN Listing Generator** ✨
+  - Complete listing.cpp implementation (~280 lines)
+  - Page management (50 lines/page default, configurable 10-255)
+  - M80-compatible format: AAAA BBBBBBBBBB Source
+  - Command-line options: /L (listing), /S (symbol table)
+  - Symbol table output (alphabetically sorted)
+  - Form-feed page breaks
+  - TODO: Parser needs to add labels to symbol table
 
 ### In Arbeit (Phase 3)
 - [ ] Conditional Assembly (IF/ELSE/ENDIF)
 - [ ] Chain Address Tracking for relocatable references
+- [ ] Symbol Table Integration (labels not yet in symbol table)
 
 ### Geplant
-- [ ] .PRN Listing Generator
 - [ ] bios.mac Complete Assembly (Validation)
 
 ## Build-Anleitung
