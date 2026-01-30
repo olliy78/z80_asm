@@ -586,6 +586,10 @@ bool Parser::pass2(const std::vector<std::string>& sourceLines, const std::strin
             // EQU handled in pass 1
             continue;
         }
+        else if (upperMnemonic == "ASET") {
+            // ASET handled in pass 1
+            continue;
+        }
         else if (upperMnemonic == "DB") {
             // Generate DB bytes
             if (!generateDB(line, filename)) {
@@ -898,6 +902,20 @@ const InstructionInfo* Parser::findInstructionVariant(const std::string& mnemoni
     // Try to find instruction with this pattern
     auto* inst = instructions_.findInstruction(mnemonic, pattern);
     if (inst) return inst;
+    
+    // If not found and pattern contains NN (16-bit), try N (8-bit) instead
+    // This handles cases like LD A,symbol where symbol value fits in 8 bits
+    if (pattern.find(",NN") != std::string::npos || pattern == "NN") {
+        std::string pattern8 = pattern;
+        // Replace NN with N
+        size_t pos = 0;
+        while ((pos = pattern8.find("NN", pos)) != std::string::npos) {
+            pattern8.replace(pos, 2, "N");
+            pos += 1;
+        }
+        inst = instructions_.findInstruction(mnemonic, pattern8);
+        if (inst) return inst;
+    }
     
     // If not found and pattern contains N (8-bit), try NN (16-bit) instead
     // This handles cases like CALL 5 where 5 is 8-bit but needs 16-bit address
