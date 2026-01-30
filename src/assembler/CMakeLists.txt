@@ -13,6 +13,7 @@ add_executable(m80
     rel_writer.cpp
     bit_writer.cpp
     errors.cpp
+    macro.cpp
 )
 
 target_link_libraries(m80 PRIVATE z80common)

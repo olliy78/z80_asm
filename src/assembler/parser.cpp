@@ -22,6 +22,7 @@ Parser::Parser()
     , inPhase_(false)
     , phaseOrigin_(0)
     , phaseOffset_(0)
+    , inMacroDefinition_(false)
 {
 }
 
@@ -67,9 +68,15 @@ bool Parser::assemble(const std::string& filename) {
 bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::string& filename) {
     locationCounter_ = 0;
     currentSegment_ = SegmentType::CSEG;
+    inMacroDefinition_ = false;
+    macroBody_.clear();
     
-    for (size_t i = 0; i < sourceLines.size(); ++i) {
-        const std::string& line = sourceLines[i];
+    // Process source lines (including macro expansion)
+    std::vector<std::string> expandedLines;
+    expandSourceWithMacros(sourceLines, expandedLines, filename);
+    
+    for (size_t i = 0; i < expandedLines.size(); ++i) {
+        const std::string& line = expandedLines[i];
         int lineNum = i + 1;
         
         Lexer lexer(line, filename);
@@ -107,6 +114,10 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
                                    upperToken == "DB" || upperToken == "DW" || 
                                    upperToken == "DS" || upperToken == "END" ||
                                    upperToken == "PUBLIC" || upperToken == "EXTRN" ||
+                                   upperToken == "ENTRY" || upperToken == "EXT" ||
+                                   upperToken == "NAME" || upperToken == "TITLE" ||
+                                   upperToken == "PHASE" || upperToken == "DEPHASE" ||
+                                   upperToken == ".PHASE" || upperToken == ".DEPHASE" ||
                                    upperToken == "CSEG" || upperToken == "DSEG" || upperToken == "ASEG");
                 
                 if (instructions_.isMnemonic(token.text) || isDirective) {
@@ -332,6 +343,11 @@ bool Parser::pass2(const std::vector<std::string>& sourceLines, const std::strin
     locationCounter_ = 0;
     currentSegment_ = SegmentType::CSEG;
     
+    // Re-expand source with macros (we need to do this again for pass2)
+    std::vector<std::string> expandedLines;
+    macroProcessor_.clear(); // Reset macro state
+    expandSourceWithMacros(sourceLines, expandedLines, filename);
+    
     for (auto& line : lines_) {
         // Skip lines without mnemonics (just labels or comments)
         if (line.mnemonic.empty()) {
@@ -368,6 +384,26 @@ bool Parser::pass2(const std::vector<std::string>& sourceLines, const std::strin
         }
         else if (upperMnemonic == "CSEG" || upperMnemonic == "DSEG" || upperMnemonic == "ASEG") {
             // Segment switches handled in pass 1
+            continue;
+        }
+        else if (upperMnemonic == "NAME" || upperMnemonic == "TITLE") {
+            // NAME/TITLE handled in pass 1
+            continue;
+        }
+        else if (upperMnemonic == "PUBLIC" || upperMnemonic == "ENTRY" || 
+                 upperMnemonic == "EXTRN" || upperMnemonic == "EXT") {
+            // Symbol declarations handled in pass 1
+            continue;
+        }
+        else if (upperMnemonic == "PHASE" || upperMnemonic == "DEPHASE" ||
+                 upperMnemonic == ".PHASE" || upperMnemonic == ".DEPHASE") {
+            // PHASE handled in pass 1
+            continue;
+        }
+        else if (upperMnemonic == ".Z80" || upperMnemonic == ".8080" ||
+                 upperMnemonic == ".LIST" || upperMnemonic == ".XLIST" ||
+                 upperMnemonic == ".TFCOND" || upperMnemonic == ".SFCOND" || upperMnemonic == ".LFCOND") {
+            // Assembler directives - ignore
             continue;
         }
         else if (upperMnemonic == "END") {
@@ -881,6 +917,335 @@ bool Parser::writeREL(const std::string& filename, const std::string& moduleName
     
     // Write to file
     return writer.writeToFile(filename);
+}
+
+bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
+                                    std::vector<std::string>& expandedLines,
+                                    const std::string& filename) {
+    bool inMacroDef = false;
+    bool inReptDef = false;
+    bool inIRPDef = false;
+    bool inIRPCDef = false;
+    
+    MacroDefinition currentMacro;
+    std::vector<std::string> currentBody;
+    std::vector<std::string> localLabels;
+    int repeatCount = 0;
+    std::string iteratorName;
+    std::vector<std::string> iteratorValues;
+    std::string irpcChars;
+    
+    for (size_t lineIdx = 0; lineIdx < sourceLines.size(); ++lineIdx) {
+        const std::string& line = sourceLines[lineIdx];
+        
+        // If we're expanding macros, get lines from macro processor
+        while (macroProcessor_.isExpanding()) {
+            std::string expandedLine;
+            if (macroProcessor_.getNextLine(expandedLine)) {
+                expandedLines.push_back(expandedLine);
+            } else {
+                break; // Expansion complete
+            }
+        }
+        
+        Lexer lexer(line, filename);
+        Token token = lexer.nextToken();
+        
+        // Skip empty lines and comments
+        if (token.type == TokenType::EndOfLine || token.type == TokenType::EndOfFile) {
+            if (!inMacroDef && !inReptDef && !inIRPDef && !inIRPCDef) {
+                expandedLines.push_back(line);
+            }
+            continue;
+        }
+        
+        // Check for label
+        std::string labelName;
+        if (token.type == TokenType::Identifier) {
+            Token next = lexer.peekToken();
+            if (next.type == TokenType::Colon) {
+                labelName = token.text;
+                lexer.nextToken(); // Skip colon
+                token = lexer.nextToken();
+            } else {
+                // Check if first token is a known directive/mnemonic
+                std::string upperToken = token.text;
+                for (char& c : upperToken) c = std::toupper(c);
+                bool isDirective = (upperToken == "ORG" || upperToken == "EQU" || 
+                                   upperToken == "DB" || upperToken == "DW" || 
+                                   upperToken == "DS" || upperToken == "END" ||
+                                   upperToken == "PUBLIC" || upperToken == "EXTRN" ||
+                                   upperToken == "ENTRY" || upperToken == "EXT" ||
+                                   upperToken == "NAME" || upperToken == "TITLE" ||
+                                   upperToken == "CSEG" || upperToken == "DSEG" || 
+                                   upperToken == "ASEG" || upperToken == "PHASE" ||
+                                   upperToken == "DEPHASE" || upperToken == ".PHASE" ||
+                                   upperToken == ".DEPHASE" || upperToken == ".Z80" ||
+                                   upperToken == ".8080" || upperToken == ".LIST" ||
+                                   upperToken == ".XLIST" || upperToken == ".TFCOND" ||
+                                   upperToken == ".SFCOND" || upperToken == ".LFCOND" ||
+                                   upperToken == "MACRO" || upperToken == "REPT" ||
+                                   upperToken == "IRP" || upperToken == "IRPC" ||
+                                   upperToken == "ENDM" || upperToken == "LOCAL" ||
+                                   upperToken == "EXITM");
+                
+                if (!isDirective && next.type == TokenType::Identifier) {
+                    // Assume it's a label without colon
+                    labelName = token.text;
+                    token = lexer.nextToken();
+                }
+            }
+        }
+        
+        // Check for directives
+        if (token.type == TokenType::Identifier) {
+            std::string upperMnemonic = token.text;
+            for (char& c : upperMnemonic) c = std::toupper(c);
+            
+            // MACRO definition
+            if (upperMnemonic == "MACRO" && !labelName.empty()) {
+                inMacroDef = true;
+                currentMacro = MacroDefinition();
+                currentMacro.type = MacroType::UserDefined;
+                currentMacro.name = labelName;
+                currentMacro.definitionLine = lineIdx + 1;
+                currentMacro.definitionFile = filename;
+                currentBody.clear();
+                localLabels.clear();
+                
+                // Parse parameters
+                token = lexer.nextToken();
+                while (token.type == TokenType::Identifier) {
+                    currentMacro.parameters.push_back(token.text);
+                    token = lexer.nextToken();
+                    if (token.type == TokenType::Comma) {
+                        token = lexer.nextToken();
+                    }
+                }
+                continue;
+            }
+            
+            // REPT definition
+            if (upperMnemonic == "REPT") {
+                inReptDef = true;
+                currentBody.clear();
+                localLabels.clear();
+                
+                // Parse repeat count
+                token = lexer.nextToken();
+                if (token.type == TokenType::Number) {
+                    repeatCount = static_cast<int>(token.numValue);
+                }
+                continue;
+            }
+            
+            // IRP definition
+            if (upperMnemonic == "IRP") {
+                inIRPDef = true;
+                currentBody.clear();
+                localLabels.clear();
+                iteratorValues.clear();
+                
+                // Parse iterator name
+                token = lexer.nextToken();
+                if (token.type == TokenType::Identifier) {
+                    iteratorName = token.text;
+                }
+                
+                // Parse argument list in <...>
+                token = lexer.nextToken();
+                if (token.type == TokenType::LessThan || line.find('<') != std::string::npos) {
+                    // Find content between < and >
+                    size_t start = line.find('<');
+                    size_t end = line.find('>');
+                    if (start != std::string::npos && end != std::string::npos && end > start) {
+                        std::string argList = line.substr(start + 1, end - start - 1);
+                        
+                        // Parse comma-separated values
+                        std::istringstream iss(argList);
+                        std::string value;
+                        while (std::getline(iss, value, ',')) {
+                            // Trim whitespace
+                            size_t first = value.find_first_not_of(" \t");
+                            size_t last = value.find_last_not_of(" \t");
+                            if (first != std::string::npos) {
+                                value = value.substr(first, last - first + 1);
+                                if (!value.empty()) {
+                                    iteratorValues.push_back(value);
+                                }
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
+            
+            // IRPC definition
+            if (upperMnemonic == "IRPC") {
+                inIRPCDef = true;
+                currentBody.clear();
+                localLabels.clear();
+                
+                // Parse iterator name
+                token = lexer.nextToken();
+                if (token.type == TokenType::Identifier) {
+                    iteratorName = token.text;
+                }
+                
+                // Parse character string
+                token = lexer.nextToken();
+                if (token.type == TokenType::String || token.type == TokenType::Identifier) {
+                    irpcChars = token.text;
+                }
+                continue;
+            }
+            
+            // LOCAL declaration
+            if (upperMnemonic == "LOCAL" && (inMacroDef || inReptDef || inIRPDef || inIRPCDef)) {
+                // Parse local labels
+                token = lexer.nextToken();
+                while (token.type == TokenType::Identifier) {
+                    localLabels.push_back(token.text);
+                    token = lexer.nextToken();
+                    if (token.type == TokenType::Comma) {
+                        token = lexer.nextToken();
+                    }
+                }
+                continue;
+            }
+            
+            // EXITM
+            if (upperMnemonic == "EXITM") {
+                if (macroProcessor_.isExpanding()) {
+                    macroProcessor_.exitMacro();
+                }
+                if (inMacroDef || inReptDef || inIRPDef || inIRPCDef) {
+                    currentBody.push_back(line);
+                }
+                continue;
+            }
+            
+            // ENDM - end macro/rept/irp/irpc
+            if (upperMnemonic == "ENDM") {
+                if (inMacroDef) {
+                    currentMacro.body = currentBody;
+                    currentMacro.localLabels = localLabels;
+                    macroProcessor_.defineMacro(currentMacro);
+                    inMacroDef = false;
+                } else if (inReptDef) {
+                    macroProcessor_.beginRepeat(repeatCount, currentBody, localLabels);
+                    inReptDef = false;
+                    
+                    // Expand immediately
+                    while (macroProcessor_.isExpanding()) {
+                        std::string expandedLine;
+                        if (macroProcessor_.getNextLine(expandedLine)) {
+                            expandedLines.push_back(expandedLine);
+                        } else {
+                            break;
+                        }
+                    }
+                } else if (inIRPDef) {
+                    macroProcessor_.beginIRP(iteratorName, iteratorValues, currentBody, localLabels);
+                    inIRPDef = false;
+                    
+                    // Expand immediately
+                    while (macroProcessor_.isExpanding()) {
+                        std::string expandedLine;
+                        if (macroProcessor_.getNextLine(expandedLine)) {
+                            expandedLines.push_back(expandedLine);
+                        } else {
+                            break;
+                        }
+                    }
+                } else if (inIRPCDef) {
+                    macroProcessor_.beginIRPC(iteratorName, irpcChars, currentBody, localLabels);
+                    inIRPCDef = false;
+                    
+                    // Expand immediately
+                    while (macroProcessor_.isExpanding()) {
+                        std::string expandedLine;
+                        if (macroProcessor_.getNextLine(expandedLine)) {
+                            expandedLines.push_back(expandedLine);
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                continue;
+            }
+            
+            // Check if it's a macro invocation
+            if (!inMacroDef && !inReptDef && !inIRPDef && !inIRPCDef) {
+                // First check if it's a known directive or mnemonic
+                bool isKnownDirective = (upperMnemonic == "ORG" || upperMnemonic == "EQU" || 
+                                        upperMnemonic == "DB" || upperMnemonic == "DW" || 
+                                        upperMnemonic == "DS" || upperMnemonic == "END" ||
+                                        upperMnemonic == "PUBLIC" || upperMnemonic == "EXTRN" ||
+                                        upperMnemonic == "ENTRY" || upperMnemonic == "EXT" ||
+                                        upperMnemonic == "NAME" || upperMnemonic == "TITLE" ||
+                                        upperMnemonic == "CSEG" || upperMnemonic == "DSEG" || 
+                                        upperMnemonic == "ASEG" || upperMnemonic == "PHASE" ||
+                                        upperMnemonic == "DEPHASE" || upperMnemonic == ".PHASE" ||
+                                        upperMnemonic == ".DEPHASE" || upperMnemonic == ".Z80" ||
+                                        upperMnemonic == ".8080" || upperMnemonic == ".LIST" ||
+                                        upperMnemonic == ".XLIST" || upperMnemonic == ".TFCOND" ||
+                                        upperMnemonic == ".SFCOND" || upperMnemonic == ".LFCOND");
+                
+                std::string checkName = labelName.empty() ? token.text : labelName;
+                if (!isKnownDirective && macroProcessor_.isMacroDefined(checkName)) {
+                    std::string macroName = checkName;
+                    std::vector<std::string> arguments;
+                    
+                    // Parse arguments
+                    if (labelName.empty()) {
+                        token = lexer.nextToken();
+                    }
+                    while (token.type == TokenType::Identifier || token.type == TokenType::Number || 
+                           token.type == TokenType::String) {
+                        std::string arg;
+                        if (token.type == TokenType::Number) {
+                            arg = std::to_string(token.numValue);
+                        } else {
+                            arg = token.text;
+                        }
+                        arguments.push_back(arg);
+                        
+                        token = lexer.nextToken();
+                        if (token.type == TokenType::Comma) {
+                            token = lexer.nextToken();
+                        } else {
+                            break;
+                        }
+                    }
+                    
+                    // Begin expansion
+                    macroProcessor_.beginExpansion(macroName, arguments);
+                    
+                    // Expand all lines from this macro
+                    while (macroProcessor_.isExpanding()) {
+                        std::string expandedLine;
+                        if (macroProcessor_.getNextLine(expandedLine)) {
+                            expandedLines.push_back(expandedLine);
+                        } else {
+                            break;
+                        }
+                    }
+                    continue;
+                }
+            }
+        }
+        
+        // If in macro/rept/irp/irpc definition, accumulate body
+        if (inMacroDef || inReptDef || inIRPDef || inIRPCDef) {
+            currentBody.push_back(line);
+        } else {
+            // Normal line, pass through
+            expandedLines.push_back(line);
+        }
+    }
+    
+    return true;
 }
 
 } // namespace z80

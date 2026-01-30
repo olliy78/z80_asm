@@ -13,6 +13,7 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include "parser.h"
 
 int main(int argc, char* argv[]) {
     std::cout << "Z80 Assembler (M80 compatible) - Version 0.1.0\n";
@@ -39,14 +40,35 @@ int main(int argc, char* argv[]) {
     
     std::cout << "Assembling: " << inputFile << "\n";
     
-    // TODO: Implement assembly process
-    // 1. Lexer
-    // 2. Parser (Pass 1: collect symbols)
-    // 3. Parser (Pass 2: generate code)
-    // 4. Write .REL file
-    // 5. Write .PRN file (if requested)
+    // Assemble the file
+    z80::Parser parser;
+    bool success = parser.assemble(inputFile);
     
-    std::cout << "Assembly complete (placeholder)\n";
+    if (!success || parser.hasErrors()) {
+        std::cerr << "\nAssembly failed with errors:\n";
+        for (const auto& error : parser.getErrors()) {
+            std::cerr << error.filename << ":" << error.line << ":" << error.column 
+                      << ": " << error.message << "\n";
+        }
+        return 1;
+    }
     
+    // Generate output filename (.rel)
+    std::string outputFile = inputFile;
+    size_t dotPos = outputFile.find_last_of('.');
+    if (dotPos != std::string::npos) {
+        outputFile = outputFile.substr(0, dotPos);
+    }
+    outputFile += ".rel";
+    
+    // Write output
+    std::cout << "Writing output: " << outputFile << "\n";
+    if (!parser.writeREL(outputFile)) {
+        std::cerr << "Error: Failed to write output file\n";
+        return 1;
+    }
+    
+    std::cout << "Assembly complete - " << parser.getLines().size() << " lines processed\n";
+    std::cout << "Output written to: " << outputFile << "\n";    
     return 0;
 }

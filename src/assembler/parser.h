@@ -21,6 +21,7 @@
 #include "z80_instructions.h"
 #include "rel_writer.h"
 #include "errors.h"
+#include "macro.h"
 
 namespace z80 {
 
@@ -170,8 +171,20 @@ private:
      */
     bool isRegisterOperand(const std::string& operand);
     
+    /**
+     * @brief Expand source lines with macro processing
+     * @param sourceLines Original source lines
+     * @param expandedLines Output: expanded lines with macros processed
+     * @param filename Source filename
+     * @return true if successful
+     */
+    bool expandSourceWithMacros(const std::vector<std::string>& sourceLines,
+                                std::vector<std::string>& expandedLines,
+                                const std::string& filename);
+    
     SymbolTable symbolTable_;           ///< Symbol table
     Z80Instructions instructions_;      ///< Z80 instruction set
+    MacroProcessor macroProcessor_;     ///< Macro processor
     std::vector<ParsedLine> lines_;     ///< Parsed lines
     std::vector<AssemblyError> errors_; ///< Assembly errors
     
@@ -186,6 +199,11 @@ private:
     bool inPhase_;                      ///< True if in PHASE block
     Address phaseOrigin_;               ///< Origin address before PHASE
     Address phaseOffset_;               ///< Phase offset (runtime - assembly address)
+    
+    // MACRO/ENDM support
+    bool inMacroDefinition_;            ///< True if defining a macro
+    MacroDefinition currentMacro_;      ///< Current macro being defined
+    std::vector<std::string> macroBody_; ///< Lines of current macro body
 };
 
 } // namespace z80
