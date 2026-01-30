@@ -62,11 +62,24 @@ Entwicklung eines Assemblers, der exakt das gleiche binäre Ausgabeformat (.REL)
   - BitWriter Tests (9 Testfälle, **gegen bios.rel validiert**)
   - REL Writer Tests (6 Testfälle, **BIOSMO Header Match**)
   - **End-to-End Tests (.REL-Generierung funktional)**
+- [x] **Z80 Instruction Set (705 variants)** ✨
+  - 8-bit & 16-bit Load Instructions
+  - Arithmetic & Logical Instructions
+  - Rotate & Shift Instructions (CB prefix)
+  - Bit Manipulation (BIT/SET/RES)
+  - Jump, Call, Return (conditional & unconditional)
+  - Stack Operations (PUSH/POP)
+  - Exchange Instructions (EX)
+  - **Block Instructions** (LDIR, CPIR, INI, OUTI families)
+  - **Indexed Addressing** (IX/IY with displacement)
+  - **Extended I/O** (IN r,(C), OUT (C),r)
+  - I/O Instructions (IN/OUT)
+  - Special Instructions (NOP, HALT, DI, EI, etc.)
 
 ### In Arbeit (Phase 2)
 - [ ] PUBLIC/EXTRN Direktiven-Handling im Parser
 - [ ] Chain Address Tracking bei Relocatable References
-- [ ] Vollständige Z80-Instruction-Table (erweitern nach Bedarf)
+- [ ] CB-prefixed Indexed Instructions (IX/IY bit operations)
 
 ### Geplant
 - [ ] .PRN Listing Generator
@@ -187,7 +200,13 @@ Siehe [PROJEKT_PLANUNG.md](doc/PROJEKT_PLANUNG.md) für detaillierte Information
 
 ### M80-Syntax
 
-- [x] Z80-Befehlssatz (Grundbefehle implementiert)
+- [x] **Z80-Befehlssatz (705 Varianten)** ✨
+  - Alle Standard Z80 Instructions
+  - Indexed Addressing (IX/IY)
+  - Block Instructions (LDIR, CPIR, etc.)
+  - Extended I/O (IN/OUT mit C)
+  - CB-prefixed Instructions (Rotate/Shift/Bit)
+  - ED-prefixed Instructions (Block/Extended IO)
 - [x] Labels und Symbole
 - [x] EQU-Konstanten
 - [x] DB/DW/DS (Data Definition)

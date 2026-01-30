@@ -29,6 +29,9 @@ void Z80Instructions::initializeInstructions() {
     addBitInstructions();
     addJumpCallReturnInstructions();
     addIOInstructions();
+    addExtendedIOInstructions();
+    addBlockInstructions();
+    addIndexedInstructions();
     addMiscInstructions();
 }
 
@@ -941,6 +944,385 @@ void Z80Instructions::addMiscInstructions() {
     scf.operandBytes = 0;
     scf.cycles = 4;
     instructions_.push_back(scf);
+}
+
+void Z80Instructions::addBlockInstructions() {
+    // Block transfer instructions
+    InstructionInfo ldi;
+    ldi.mnemonic = "LDI";
+    ldi.operandPattern = "";
+    ldi.mode = AddressingMode::Implied;
+    ldi.opcodes = {0xED, 0xA0};
+    ldi.operandBytes = 0;
+    ldi.cycles = 16;
+    instructions_.push_back(ldi);
+    
+    InstructionInfo ldir;
+    ldir.mnemonic = "LDIR";
+    ldir.operandPattern = "";
+    ldir.mode = AddressingMode::Implied;
+    ldir.opcodes = {0xED, 0xB0};
+    ldir.operandBytes = 0;
+    ldir.cycles = 21;  // 21 if BC≠0, 16 if BC=0
+    instructions_.push_back(ldir);
+    
+    InstructionInfo ldd;
+    ldd.mnemonic = "LDD";
+    ldd.operandPattern = "";
+    ldd.mode = AddressingMode::Implied;
+    ldd.opcodes = {0xED, 0xA8};
+    ldd.operandBytes = 0;
+    ldd.cycles = 16;
+    instructions_.push_back(ldd);
+    
+    InstructionInfo lddr;
+    lddr.mnemonic = "LDDR";
+    lddr.operandPattern = "";
+    lddr.mode = AddressingMode::Implied;
+    lddr.opcodes = {0xED, 0xB8};
+    lddr.operandBytes = 0;
+    lddr.cycles = 21;
+    instructions_.push_back(lddr);
+    
+    // Block compare instructions
+    InstructionInfo cpi;
+    cpi.mnemonic = "CPI";
+    cpi.operandPattern = "";
+    cpi.mode = AddressingMode::Implied;
+    cpi.opcodes = {0xED, 0xA1};
+    cpi.operandBytes = 0;
+    cpi.cycles = 16;
+    instructions_.push_back(cpi);
+    
+    InstructionInfo cpir;
+    cpir.mnemonic = "CPIR";
+    cpir.operandPattern = "";
+    cpir.mode = AddressingMode::Implied;
+    cpir.opcodes = {0xED, 0xB1};
+    cpir.operandBytes = 0;
+    cpir.cycles = 21;
+    instructions_.push_back(cpir);
+    
+    InstructionInfo cpd;
+    cpd.mnemonic = "CPD";
+    cpd.operandPattern = "";
+    cpd.mode = AddressingMode::Implied;
+    cpd.opcodes = {0xED, 0xA9};
+    cpd.operandBytes = 0;
+    cpd.cycles = 16;
+    instructions_.push_back(cpd);
+    
+    InstructionInfo cpdr;
+    cpdr.mnemonic = "CPDR";
+    cpdr.operandPattern = "";
+    cpdr.mode = AddressingMode::Implied;
+    cpdr.opcodes = {0xED, 0xB9};
+    cpdr.operandBytes = 0;
+    cpdr.cycles = 21;
+    instructions_.push_back(cpdr);
+    
+    // Block I/O instructions
+    InstructionInfo ini;
+    ini.mnemonic = "INI";
+    ini.operandPattern = "";
+    ini.mode = AddressingMode::Implied;
+    ini.opcodes = {0xED, 0xA2};
+    ini.operandBytes = 0;
+    ini.cycles = 16;
+    instructions_.push_back(ini);
+    
+    InstructionInfo inir;
+    inir.mnemonic = "INIR";
+    inir.operandPattern = "";
+    inir.mode = AddressingMode::Implied;
+    inir.opcodes = {0xED, 0xB2};
+    inir.operandBytes = 0;
+    inir.cycles = 21;
+    instructions_.push_back(inir);
+    
+    InstructionInfo ind;
+    ind.mnemonic = "IND";
+    ind.operandPattern = "";
+    ind.mode = AddressingMode::Implied;
+    ind.opcodes = {0xED, 0xAA};
+    ind.operandBytes = 0;
+    ind.cycles = 16;
+    instructions_.push_back(ind);
+    
+    InstructionInfo indr;
+    indr.mnemonic = "INDR";
+    indr.operandPattern = "";
+    indr.mode = AddressingMode::Implied;
+    indr.opcodes = {0xED, 0xBA};
+    indr.operandBytes = 0;
+    indr.cycles = 21;
+    instructions_.push_back(indr);
+    
+    InstructionInfo outi;
+    outi.mnemonic = "OUTI";
+    outi.operandPattern = "";
+    outi.mode = AddressingMode::Implied;
+    outi.opcodes = {0xED, 0xA3};
+    outi.operandBytes = 0;
+    outi.cycles = 16;
+    instructions_.push_back(outi);
+    
+    InstructionInfo otir;
+    otir.mnemonic = "OTIR";
+    otir.operandPattern = "";
+    otir.mode = AddressingMode::Implied;
+    otir.opcodes = {0xED, 0xB3};
+    otir.operandBytes = 0;
+    otir.cycles = 21;
+    instructions_.push_back(otir);
+    
+    InstructionInfo outd;
+    outd.mnemonic = "OUTD";
+    outd.operandPattern = "";
+    outd.mode = AddressingMode::Implied;
+    outd.opcodes = {0xED, 0xAB};
+    outd.operandBytes = 0;
+    outd.cycles = 16;
+    instructions_.push_back(outd);
+    
+    InstructionInfo otdr;
+    otdr.mnemonic = "OTDR";
+    otdr.operandPattern = "";
+    otdr.mode = AddressingMode::Implied;
+    otdr.opcodes = {0xED, 0xBB};
+    otdr.operandBytes = 0;
+    otdr.cycles = 21;
+    instructions_.push_back(otdr);
+}
+
+void Z80Instructions::addIndexedInstructions() {
+    // IX/IY register loads
+    const char* indexRegs[] = {"IX", "IY"};
+    const Byte indexPrefix[] = {0xDD, 0xFD};
+    
+    for (int idx = 0; idx < 2; idx++) {
+        // LD IX/IY,nn
+        InstructionInfo ldIXnn;
+        ldIXnn.mnemonic = "LD";
+        ldIXnn.operandPattern = std::string(indexRegs[idx]) + ",NN";
+        ldIXnn.mode = AddressingMode::Immediate;
+        ldIXnn.opcodes = {indexPrefix[idx], 0x21};
+        ldIXnn.operandBytes = 2;
+        ldIXnn.cycles = 14;
+        instructions_.push_back(ldIXnn);
+        
+        // LD (nn),IX/IY
+        InstructionInfo ldnnIX;
+        ldnnIX.mnemonic = "LD";
+        ldnnIX.operandPattern = "(NN)," + std::string(indexRegs[idx]);
+        ldnnIX.mode = AddressingMode::Direct;
+        ldnnIX.opcodes = {indexPrefix[idx], 0x22};
+        ldnnIX.operandBytes = 2;
+        ldnnIX.cycles = 20;
+        instructions_.push_back(ldnnIX);
+        
+        // LD IX/IY,(nn)
+        InstructionInfo ldIXnn2;
+        ldIXnn2.mnemonic = "LD";
+        ldIXnn2.operandPattern = std::string(indexRegs[idx]) + ",(NN)";
+        ldIXnn2.mode = AddressingMode::Direct;
+        ldIXnn2.opcodes = {indexPrefix[idx], 0x2A};
+        ldIXnn2.operandBytes = 2;
+        ldIXnn2.cycles = 20;
+        instructions_.push_back(ldIXnn2);
+        
+        // LD SP,IX/IY
+        InstructionInfo ldSPIX;
+        ldSPIX.mnemonic = "LD";
+        ldSPIX.operandPattern = "SP," + std::string(indexRegs[idx]);
+        ldSPIX.mode = AddressingMode::Register;
+        ldSPIX.opcodes = {indexPrefix[idx], 0xF9};
+        ldSPIX.operandBytes = 0;
+        ldSPIX.cycles = 10;
+        instructions_.push_back(ldSPIX);
+        
+        // PUSH IX/IY
+        InstructionInfo pushIX;
+        pushIX.mnemonic = "PUSH";
+        pushIX.operandPattern = indexRegs[idx];
+        pushIX.mode = AddressingMode::Register;
+        pushIX.opcodes = {indexPrefix[idx], 0xE5};
+        pushIX.operandBytes = 0;
+        pushIX.cycles = 15;
+        instructions_.push_back(pushIX);
+        
+        // POP IX/IY
+        InstructionInfo popIX;
+        popIX.mnemonic = "POP";
+        popIX.operandPattern = indexRegs[idx];
+        popIX.mode = AddressingMode::Register;
+        popIX.opcodes = {indexPrefix[idx], 0xE1};
+        popIX.operandBytes = 0;
+        popIX.cycles = 14;
+        instructions_.push_back(popIX);
+        
+        // EX (SP),IX/IY
+        InstructionInfo exSPIX;
+        exSPIX.mnemonic = "EX";
+        exSPIX.operandPattern = "(SP)," + std::string(indexRegs[idx]);
+        exSPIX.mode = AddressingMode::RegisterIndirect;
+        exSPIX.opcodes = {indexPrefix[idx], 0xE3};
+        exSPIX.operandBytes = 0;
+        exSPIX.cycles = 23;
+        instructions_.push_back(exSPIX);
+        
+        // JP (IX/IY)
+        InstructionInfo jpIX;
+        jpIX.mnemonic = "JP";
+        jpIX.operandPattern = "(" + std::string(indexRegs[idx]) + ")";
+        jpIX.mode = AddressingMode::RegisterIndirect;
+        jpIX.opcodes = {indexPrefix[idx], 0xE9};
+        jpIX.operandBytes = 0;
+        jpIX.cycles = 8;
+        instructions_.push_back(jpIX);
+        
+        // ADD IX/IY,rr (BC, DE, IX/IY, SP)
+        const char* regPairs[] = {"BC", "DE", indexRegs[idx], "SP"};
+        const Byte addOpcodes[] = {0x09, 0x19, 0x29, 0x39};
+        
+        for (int rp = 0; rp < 4; rp++) {
+            InstructionInfo addIX;
+            addIX.mnemonic = "ADD";
+            addIX.operandPattern = std::string(indexRegs[idx]) + "," + regPairs[rp];
+            addIX.mode = AddressingMode::Register;
+            addIX.opcodes = {indexPrefix[idx], addOpcodes[rp]};
+            addIX.operandBytes = 0;
+            addIX.cycles = 15;
+            instructions_.push_back(addIX);
+        }
+        
+        // INC/DEC IX/IY
+        InstructionInfo incIX;
+        incIX.mnemonic = "INC";
+        incIX.operandPattern = indexRegs[idx];
+        incIX.mode = AddressingMode::Register;
+        incIX.opcodes = {indexPrefix[idx], 0x23};
+        incIX.operandBytes = 0;
+        incIX.cycles = 10;
+        instructions_.push_back(incIX);
+        
+        InstructionInfo decIX;
+        decIX.mnemonic = "DEC";
+        decIX.operandPattern = indexRegs[idx];
+        decIX.mode = AddressingMode::Register;
+        decIX.opcodes = {indexPrefix[idx], 0x2B};
+        decIX.operandBytes = 0;
+        decIX.cycles = 10;
+        instructions_.push_back(decIX);
+        
+        // LD r,(IX/IY+d) and LD (IX/IY+d),r
+        const char* regs = "BCDEHL_A";
+        for (int reg = 0; reg < 8; reg++) {
+            if (reg == 6) continue; // Skip (HL) position
+            
+            // LD r,(IX/IY+d)
+            InstructionInfo ldRIXd;
+            ldRIXd.mnemonic = "LD";
+            ldRIXd.operandPattern = std::string(1, regs[reg]) + ",(" + indexRegs[idx] + "+D)";
+            ldRIXd.mode = AddressingMode::Indexed;
+            ldRIXd.opcodes = {indexPrefix[idx], static_cast<Byte>(0x46 + (reg << 3))};
+            ldRIXd.operandBytes = 1;  // displacement
+            ldRIXd.cycles = 19;
+            instructions_.push_back(ldRIXd);
+            
+            // LD (IX/IY+d),r
+            InstructionInfo ldIXdR;
+            ldIXdR.mnemonic = "LD";
+            ldIXdR.operandPattern = "(" + std::string(indexRegs[idx]) + "+D)," + std::string(1, regs[reg]);
+            ldIXdR.mode = AddressingMode::Indexed;
+            ldIXdR.opcodes = {indexPrefix[idx], static_cast<Byte>(0x70 + reg)};
+            ldIXdR.operandBytes = 1;
+            ldIXdR.cycles = 19;
+            instructions_.push_back(ldIXdR);
+        }
+        
+        // LD (IX/IY+d),n
+        InstructionInfo ldIXdn;
+        ldIXdn.mnemonic = "LD";
+        ldIXdn.operandPattern = "(" + std::string(indexRegs[idx]) + "+D),N";
+        ldIXdn.mode = AddressingMode::Indexed;
+        ldIXdn.opcodes = {indexPrefix[idx], 0x36};
+        ldIXdn.operandBytes = 2;  // displacement + immediate value
+        ldIXdn.cycles = 19;
+        instructions_.push_back(ldIXdn);
+        
+        // INC/DEC (IX/IY+d)
+        InstructionInfo incIXd;
+        incIXd.mnemonic = "INC";
+        incIXd.operandPattern = "(" + std::string(indexRegs[idx]) + "+D)";
+        incIXd.mode = AddressingMode::Indexed;
+        incIXd.opcodes = {indexPrefix[idx], 0x34};
+        incIXd.operandBytes = 1;
+        incIXd.cycles = 23;
+        instructions_.push_back(incIXd);
+        
+        InstructionInfo decIXd;
+        decIXd.mnemonic = "DEC";
+        decIXd.operandPattern = "(" + std::string(indexRegs[idx]) + "+D)";
+        decIXd.mode = AddressingMode::Indexed;
+        decIXd.opcodes = {indexPrefix[idx], 0x35};
+        decIXd.operandBytes = 1;
+        decIXd.cycles = 23;
+        instructions_.push_back(decIXd);
+        
+        // Arithmetic with (IX/IY+d)
+        const char* arithOps[] = {"ADD", "ADC", "SUB", "SBC", "AND", "XOR", "OR", "CP"};
+        const Byte arithBase[] = {0x86, 0x8E, 0x96, 0x9E, 0xA6, 0xAE, 0xB6, 0xBE};
+        
+        for (int op = 0; op < 8; op++) {
+            InstructionInfo arithIXd;
+            arithIXd.mnemonic = arithOps[op];
+            arithIXd.operandPattern = "A,(" + std::string(indexRegs[idx]) + "+D)";
+            arithIXd.mode = AddressingMode::Indexed;
+            arithIXd.opcodes = {indexPrefix[idx], arithBase[op]};
+            arithIXd.operandBytes = 1;
+            arithIXd.cycles = 19;
+            instructions_.push_back(arithIXd);
+            
+            // Also add implicit A version
+            InstructionInfo arithIXdImpl;
+            arithIXdImpl.mnemonic = arithOps[op];
+            arithIXdImpl.operandPattern = "(" + std::string(indexRegs[idx]) + "+D)";
+            arithIXdImpl.mode = AddressingMode::Indexed;
+            arithIXdImpl.opcodes = {indexPrefix[idx], arithBase[op]};
+            arithIXdImpl.operandBytes = 1;
+            arithIXdImpl.cycles = 19;
+            instructions_.push_back(arithIXdImpl);
+        }
+    }
+}
+
+void Z80Instructions::addExtendedIOInstructions() {
+    // IN r,(C) - Input from port (C) into register r
+    const char* regs = "BCDEHL_A";
+    
+    for (int reg = 0; reg < 8; reg++) {
+        InstructionInfo inRC;
+        inRC.mnemonic = "IN";
+        inRC.operandPattern = std::string(1, regs[reg]) + ",(C)";
+        inRC.mode = AddressingMode::RegisterIndirect;
+        inRC.opcodes = {0xED, static_cast<Byte>(0x40 + (reg << 3))};
+        inRC.operandBytes = 0;
+        inRC.cycles = 12;
+        instructions_.push_back(inRC);
+    }
+    
+    // OUT (C),r - Output register r to port (C)
+    for (int reg = 0; reg < 8; reg++) {
+        InstructionInfo outCR;
+        outCR.mnemonic = "OUT";
+        outCR.operandPattern = "(C)," + std::string(1, regs[reg]);
+        outCR.mode = AddressingMode::RegisterIndirect;
+        outCR.opcodes = {0xED, static_cast<Byte>(0x41 + (reg << 3))};
+        outCR.operandBytes = 0;
+        outCR.cycles = 12;
+        instructions_.push_back(outCR);
+    }
 }
 
 } // namespace z80

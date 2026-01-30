@@ -67,6 +67,12 @@ public:
      */
     bool isMnemonic(const std::string& name) const;
     
+    /**
+     * @brief Get the total number of instruction variants
+     * @return Number of entries in the instruction table
+     */
+    size_t getInstructionCount() const { return instructions_.size(); }
+    
 private:
     /** @brief Initialize all instruction entries */
     void initializeInstructions();
@@ -94,6 +100,15 @@ private:
     
     /** @brief Add I/O instructions */
     void addIOInstructions();
+    
+    /** @brief Add extended I/O instructions (ED prefix) */
+    void addExtendedIOInstructions();
+    
+    /** @brief Add block transfer/compare instructions */
+    void addBlockInstructions();
+    
+    /** @brief Add indexed addressing instructions (IX/IY) */
+    void addIndexedInstructions();
     
     /** @brief Add miscellaneous instructions */
     void addMiscInstructions();
