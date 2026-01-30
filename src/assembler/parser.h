@@ -160,9 +160,10 @@ private:
     /**
      * @brief Convert operand to addressing pattern
      * @param operand Single operand string
-     * @return Pattern like "A", "NN", "(HL)", "(IX+D)", etc.
+     * @param mnemonic Instruction mnemonic (for context-sensitive parsing)
+     * @return Pattern like "A", "N", "NN", "(HL)", "(IX+D)", etc.
      */
-    std::string operandToPattern(const std::string& operand);
+    std::string operandToPattern(const std::string& operand, const std::string& mnemonic = "");
     
     /**
      * @brief Check if operand is a register

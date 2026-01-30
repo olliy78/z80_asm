@@ -692,7 +692,7 @@ const InstructionInfo* Parser::findInstructionVariant(const std::string& mnemoni
     std::string pattern;
     for (size_t i = 0; i < operands.size(); i++) {
         if (i > 0) pattern += ",";
-        pattern += operandToPattern(operands[i]);
+        pattern += operandToPattern(operands[i], mnemonic);
     }
     
     // Try to find instruction with this pattern
@@ -726,7 +726,7 @@ const InstructionInfo* Parser::findInstructionVariant(const std::string& mnemoni
     return nullptr;
 }
 
-std::string Parser::operandToPattern(const std::string& operand) {
+std::string Parser::operandToPattern(const std::string& operand, const std::string& mnemonic) {
     if (operand.empty()) {
         return "";
     }
@@ -734,6 +734,10 @@ std::string Parser::operandToPattern(const std::string& operand) {
     // Convert operand to uppercase for comparison
     std::string upper = operand;
     for (char& c : upper) c = std::toupper(c);
+    
+    // Convert mnemonic to uppercase for comparison
+    std::string upperMnem = mnemonic;
+    for (char& c : upperMnem) c = std::toupper(c);
     
     // Check for condition codes BEFORE registers (Z, C could be confused with registers)
     // Condition codes: Z, NZ, C, NC, P, M, PE, PO
@@ -797,10 +801,11 @@ std::string Parser::operandToPattern(const std::string& operand) {
     int base = 10;
     int64_t value = 0;
     if (parseNumber(operand, value, base)) {
-        // Special case: bit numbers 0-7 for BIT/SET/RES instructions
-        // Keep them as literal digits
-        if (value >= 0 && value <= 7 && operand.length() == 1) {
-            return operand;  // Return "0" through "7" literally
+        // Special case: bit numbers 0-7 for BIT/SET/RES instructions only
+        // Keep them as literal digits for these instructions
+        if (value >= 0 && value <= 7 && operand.length() == 1 &&
+            (upperMnem == "BIT" || upperMnem == "SET" || upperMnem == "RES")) {
+            return operand;  // Return "0" through "7" literally for bit instructions
         }
         
         // Determine size based on value
