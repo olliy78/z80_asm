@@ -59,7 +59,7 @@ Token Lexer::nextToken() {
     }
     
     // Identifier or keyword
-    if (std::isalpha(c) || c == '_' || c == '.') {
+    if (std::isalpha(c) || c == '_' || c == '.' || c == '@' || c == '?') {
         return readIdentifier();
     }
     

@@ -81,12 +81,12 @@ bool ExpressionEvaluator::matchOperator(const std::string& expr, size_t& pos, ch
 std::string ExpressionEvaluator::parseIdentifier(const std::string& expr, size_t& pos) {
     skipWhitespace(expr, pos);
     
-    if (pos >= expr.length() || (!std::isalpha(expr[pos]) && expr[pos] != '_')) {
+    if (pos >= expr.length() || (!std::isalpha(expr[pos]) && expr[pos] != '_' && expr[pos] != '.' && expr[pos] != '@' && expr[pos] != '?')) {
         return "";
     }
     
     size_t start = pos;
-    while (pos < expr.length() && (std::isalnum(expr[pos]) || expr[pos] == '_')) {
+    while (pos < expr.length() && (std::isalnum(expr[pos]) || expr[pos] == '_' || expr[pos] == '.' || expr[pos] == '@' || expr[pos] == '?' || expr[pos] == '\'')) {
         pos++;
     }
     
@@ -371,7 +371,7 @@ ExpressionResult ExpressionEvaluator::parsePrimaryExpression(const std::string& 
     }
     
     // Identifier (symbol)
-    if (std::isalpha(expr[pos]) || expr[pos] == '_') {
+    if (std::isalpha(expr[pos]) || expr[pos] == '_' || expr[pos] == '.' || expr[pos] == '@' || expr[pos] == '?') {
         std::string identifier = parseIdentifier(expr, pos);
         
         if (!symbolTable_.hasSymbol(identifier)) {
