@@ -62,7 +62,7 @@ Entwicklung eines Assemblers, der exakt das gleiche binäre Ausgabeformat (.REL)
   - BitWriter Tests (9 Testfälle, **gegen bios.rel validiert**)
   - REL Writer Tests (6 Testfälle, **BIOSMO Header Match**)
   - **End-to-End Tests (.REL-Generierung funktional)**
-- [x] **Z80 Instruction Set (769 variants - VOLLSTÄNDIG)** ✨
+- [x] **Z80 Instruction Set (782 variants - VOLLSTÄNDIG)** ✨
   - 8-bit & 16-bit Load Instructions
   - Arithmetic & Logical Instructions
   - Rotate & Shift Instructions (CB prefix)
@@ -75,6 +75,8 @@ Entwicklung eines Assemblers, der exakt das gleiche binäre Ausgabeformat (.REL)
   - **Indexed Bit Operations** (DDCB/FDCB prefix - BIT/SET/RES/Rotate on IX+d/IY+d)
   - **Extended I/O** (IN r,(C), OUT (C),r)
   - I/O Instructions (IN/OUT)
+  - **Interrupt Instructions** (IM 0/1/2, RETI, RETN)
+  - **Special Z80 Instructions** (DJNZ, LD I/R, RLD, RRD)
   - Special Instructions (NOP, HALT, DI, EI, etc.)
 - [x] **Multi-Module Support** ✨
   - PUBLIC/ENTRY directive (export symbols)
@@ -205,7 +207,7 @@ Siehe [PROJEKT_PLANUNG.md](doc/PROJEKT_PLANUNG.md) für detaillierte Information
 
 ### M80-Syntax
 
-- [x] **Z80-Befehlssatz (769 Varianten - VOLLSTÄNDIG)** ✨
+- [x] **Z80-Befehlssatz (782 Varianten - VOLLSTÄNDIG)** ✨
   - Alle Standard Z80 Instructions
   - Indexed Addressing (IX/IY)
   - Indexed Bit Operations (BIT/SET/RES/Rotate auf IX+d/IY+d)
@@ -223,6 +225,7 @@ Siehe [PROJEKT_PLANUNG.md](doc/PROJEKT_PLANUNG.md) für detaillierte Information
 - [x] Location Counter ($)
 - [x] **PUBLIC/EXTRN (Multi-Module Support)** ✨
 - [x] **NAME/TITLE (Module Naming)** ✨
+- [x] **.PHASE/.DEPHASE (Relocatable Code)** ✨
 - [ ] MACRO/ENDM (Phase 3)
 - [ ] IF/ELSE/ENDIF (Phase 3)
 
