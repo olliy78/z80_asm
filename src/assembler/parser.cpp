@@ -2025,6 +2025,16 @@ bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLi
                         }
                     }
                     
+                    // If there's a label before the macro, add it as a separate line
+                    // so it gets defined in the symbol table
+                    if (!labelName.empty()) {
+                        expandedLines.push_back(labelName + ":");
+                        SourceLocation loc;
+                        loc.filename = filename;
+                        loc.lineNumber = lineIdx + 1;
+                        sourceLocations.push_back(loc);
+                    }
+                    
                     // Begin expansion
                     macroProcessor_.beginExpansion(macroName, arguments);
                     expandedAnything = true;  // Mark that we expanded a macro
@@ -2034,6 +2044,11 @@ bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLi
                         std::string expandedLine;
                         if (macroProcessor_.getNextLine(expandedLine)) {
                             expandedLines.push_back(expandedLine);
+                            // Track source location for macro-expanded lines
+                            SourceLocation loc;
+                            loc.filename = filename;
+                            loc.lineNumber = lineIdx + 1;  // Point back to macro invocation line
+                            sourceLocations.push_back(loc);
                         } else {
                             break;
                         }
