@@ -1026,8 +1026,14 @@ bool Parser::generateInstruction(ParsedLine& line, const std::string& filename) 
                     continue;
                 }
                 
-                // Skip register operands
+                // Skip register operands (including indirect register addressing)
                 if (isRegisterOperand(upper)) continue;
+                
+                // Check for indirect register addressing: (HL), (BC), (DE), (SP), (IX), (IY)
+                if (upper == "(HL)" || upper == "(BC)" || upper == "(DE)" || upper == "(SP)" ||
+                    upper == "(IX)" || upper == "(IY)") {
+                    continue; // Skip these - they're register operands, not expressions
+                }
                 
                 // Handle indirect addressing - extract the expression inside ()
                 if (!op.empty() && op[0] == '(' && op[op.length()-1] == ')') {
@@ -1304,7 +1310,20 @@ std::string Parser::operandToPattern(const std::string& operand, const std::stri
         // Try to parse as number to determine if it's 8-bit or 16-bit
         int base = 10;
         int64_t value = 0;
-        if (parseNumber(innerValue, value, base) && value >= 0 && value <= 255) {
+        bool isNumber = parseNumber(innerValue, value, base);
+        
+        // If not a direct number, try to resolve as symbol
+        if (!isNumber && symbolTable_.hasSymbol(innerValue)) {
+            const Symbol* sym = symbolTable_.getSymbol(innerValue);
+            if (sym && sym->defined) {
+                value = sym->value;
+                isNumber = true;
+            }
+        }
+        
+        // Check if it's 8-bit port address - ONLY for IN/OUT instructions
+        if (isNumber && value >= 0 && value <= 255 && 
+            (upperMnem == "IN" || upperMnem == "OUT")) {
             // 8-bit port address - used for IN/OUT instructions
             return "(N)";
         }
