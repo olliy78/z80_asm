@@ -21,6 +21,10 @@
 
 namespace z80 {
 
+// Forward declaration
+class Parser;
+struct ParsedLine;
+
 /**
  * @enum ItemType
  * @brief Type bits for .REL items
@@ -66,6 +70,26 @@ public:
      * @brief Construct a new REL Writer
      */
     RELWriter();
+    
+    /**
+     * @brief Write .REL file from assembled parser data
+     * 
+     * High-level method that generates a complete .REL file from a Parser.
+     * Handles all aspects of REL generation:
+     * - Module header and type detection
+     * - Segment size calculation
+     * - PUBLIC/EXTRN symbol export
+     * - Code/data emission with proper segmentation
+     * 
+     * This is the preferred way to generate .REL files, maintaining proper
+     * separation of concerns (Parser assembles, RELWriter outputs).
+     * 
+     * @param parser Parser instance with assembled code
+     * @param filename Output .REL filename
+     * @param moduleName Module name (derived from filename if empty)
+     * @return true on success, false on error
+     */
+    bool writeFromParser(const Parser& parser, const std::string& filename, const std::string& moduleName = "");
     
     /**
      * @brief Begin a new module

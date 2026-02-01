@@ -168,9 +168,10 @@ int main(int argc, char* argv[]) {
     }
     outputFile += ".rel";
     
-    // Write output
+    // Write output using RELWriter (proper separation of concerns)
     std::cout << "Writing output: " << outputFile << "\n";
-    if (!parser.writeREL(outputFile)) {
+    z80::RELWriter writer;
+    if (!writer.writeFromParser(parser, outputFile)) {
         std::cerr << "Error: Failed to write output file\n";
         return 1;
     }

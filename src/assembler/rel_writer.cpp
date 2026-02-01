@@ -4,6 +4,7 @@
  */
 
 #include "rel_writer.h"
+#include "parser.h"
 #include <algorithm>
 #include <cctype>
 
@@ -12,6 +13,163 @@ namespace z80 {
 RELWriter::RELWriter()
     : isRelocatable_(false)
 {
+}
+
+bool RELWriter::writeFromParser(const Parser& parser, const std::string& filename, const std::string& moduleName) {
+    // Derive module name from filename if not provided
+    std::string modName = moduleName;
+    if (modName.empty()) {
+        // Extract basename without extension
+        size_t lastSlash = filename.find_last_of("/\\");
+        size_t lastDot = filename.find_last_of('.');
+        size_t start = (lastSlash == std::string::npos) ? 0 : lastSlash + 1;
+        size_t end = (lastDot == std::string::npos) ? filename.length() : lastDot;
+        modName = filename.substr(start, end - start);
+    }
+    
+    const auto& lines = parser.getLines();
+    const auto& symbolTable = parser.getSymbolTable();
+    
+    // Determine if module is relocatable (has CSEG or DSEG code)
+    bool isRelocatable = false;
+    for (const auto& line : lines) {
+        if (!line.code.empty()) {
+            if (line.segment == SegmentType::CSEG || line.segment == SegmentType::DSEG) {
+                isRelocatable = true;
+                break;
+            }
+        }
+    }
+    
+    // Begin module
+    beginModule(modName, isRelocatable);
+    
+    // Calculate segment sizes
+    Address csegSize = 0, dsegSize = 0;
+    for (const auto& line : lines) {
+        if (!line.code.empty()) {
+            if (line.segment == SegmentType::CSEG) {
+                Address endAddr = line.address + line.code.size();
+                if (endAddr > csegSize) csegSize = endAddr;
+            } else if (line.segment == SegmentType::DSEG) {
+                Address endAddr = line.address + line.code.size();
+                if (endAddr > dsegSize) dsegSize = endAddr;
+            }
+        }
+    }
+    
+    // Write sizes
+    if (csegSize > 0) {
+        writeProgramSize(csegSize);
+    }
+    if (dsegSize > 0) {
+        writeDataSize(dsegSize);
+    }
+    
+    // Write PUBLIC symbols (Entry Points)
+    auto publicSymbols = symbolTable.getPublicSymbols();
+    for (const Symbol* sym : publicSymbols) {
+        // Find symbol name from symbol table
+        std::string symbolName;
+        for (const auto& pair : symbolTable.getAllSymbols()) {
+            if (&pair.second == sym) {
+                symbolName = pair.first;
+                break;
+            }
+        }
+        
+        if (symbolName.empty()) continue;
+        
+        // Determine item type based on segment
+        ItemType itemType = ItemType::Absolute;
+        if (sym->segment == SegmentType::CSEG) {
+            itemType = ItemType::ProgramRel;
+        } else if (sym->segment == SegmentType::DSEG) {
+            itemType = ItemType::DataRel;
+        }
+        
+        writeEntrySymbol(symbolName, sym->value, itemType);
+    }
+    
+    // Write EXTERNAL symbols (Chain Externals)
+    auto externalSymbols = symbolTable.getExternalSymbols();
+    for (const Symbol* sym : externalSymbols) {
+        // Find symbol name from symbol table
+        std::string symbolName;
+        for (const auto& pair : symbolTable.getAllSymbols()) {
+            if (&pair.second == sym) {
+                symbolName = pair.first;
+                break;
+            }
+        }
+        
+        if (symbolName.empty()) continue;
+        
+        writeChainExternal(symbolName);
+    }
+    
+    // Write code/data by segment
+    // Group consecutive bytes by segment
+    std::vector<Byte> currentData;
+    SegmentType currentSegType = SegmentType::CSEG;
+    Address currentAddr = 0;
+    bool hasData = false;
+    
+    for (const auto& line : lines) {
+        if (line.code.empty()) continue;
+        
+        // If segment changed or address is not continuous, flush current data
+        if (hasData && (line.segment != currentSegType || line.address != currentAddr)) {
+            // Write accumulated data
+            if (currentSegType == SegmentType::ASEG) {
+                writeAbsoluteData(currentData);
+            } else if (currentSegType == SegmentType::CSEG) {
+                writeProgramData(currentData);
+            } else if (currentSegType == SegmentType::DSEG) {
+                writeDataData(currentData);
+            }
+            currentData.clear();
+            hasData = false;
+        }
+        
+        // If starting new segment, set location
+        if (!hasData) {
+            ItemType locType = ItemType::Absolute;
+            if (line.segment == SegmentType::CSEG) {
+                locType = ItemType::ProgramRel;
+            } else if (line.segment == SegmentType::DSEG) {
+                locType = ItemType::DataRel;
+            }
+            setLocation(line.address, locType);
+            currentSegType = line.segment;
+            currentAddr = line.address;
+        }
+        
+        // Accumulate bytes
+        for (Byte b : line.code) {
+            currentData.push_back(b);
+        }
+        currentAddr += line.code.size();
+        hasData = true;
+    }
+    
+    // Flush remaining data
+    if (hasData) {
+        if (currentSegType == SegmentType::ASEG) {
+            writeAbsoluteData(currentData);
+        } else if (currentSegType == SegmentType::CSEG) {
+            writeProgramData(currentData);
+        } else if (currentSegType == SegmentType::DSEG) {
+            writeDataData(currentData);
+        }
+    }
+    
+    // End module and file
+    endModule();
+    endFile();
+    
+    // Write to file
+    return writeToFile(filename);
 }
 
 void RELWriter::beginModule(const std::string& moduleName, bool isRelocatable) {

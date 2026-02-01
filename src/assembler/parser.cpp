@@ -1541,12 +1541,10 @@ const SymbolTable& Parser::getSymbolTable() const {
 /**
  * @brief Writes assembled code to Intel/Microsoft REL format
  * 
- * Generates a relocatable object file containing:
- * - Module header with name and type
- * - Program and data area sizes
- * - PUBLIC symbols (exported entry points)
- * - EXTRN symbols (imported references)
- * - Machine code with relocation information
+ * @deprecated Use RELWriter::writeFromParser() instead for better separation of concerns
+ * 
+ * This method delegates to RELWriter::writeFromParser(). It exists for backward
+ * compatibility but should not be used in new code.
  * 
  * @param filename Output .REL filename
  * @param moduleName Module name (derived from filename if empty)
@@ -1554,158 +1552,7 @@ const SymbolTable& Parser::getSymbolTable() const {
  */
 bool Parser::writeREL(const std::string& filename, const std::string& moduleName) {
     RELWriter writer;
-    
-    // Derive module name from filename if not provided
-    std::string modName = moduleName;
-    if (modName.empty()) {
-        // Extract basename without extension
-        size_t lastSlash = filename.find_last_of("/\\");
-        size_t lastDot = filename.find_last_of('.');
-        size_t start = (lastSlash == std::string::npos) ? 0 : lastSlash + 1;
-        size_t end = (lastDot == std::string::npos) ? filename.length() : lastDot;
-        modName = filename.substr(start, end - start);
-    }
-    
-    // Determine if module is relocatable (has CSEG or DSEG code)
-    bool isRelocatable = false;
-    for (const auto& line : lines_) {
-        if (!line.code.empty()) {
-            if (line.segment == SegmentType::CSEG || line.segment == SegmentType::DSEG) {
-                isRelocatable = true;
-                break;
-            }
-        }
-    }
-    
-    // Begin module
-    writer.beginModule(modName, isRelocatable);
-    
-    // Calculate segment sizes
-    Address csegSize = 0, dsegSize = 0;
-    for (const auto& line : lines_) {
-        if (!line.code.empty()) {
-            if (line.segment == SegmentType::CSEG) {
-                Address endAddr = line.address + line.code.size();
-                if (endAddr > csegSize) csegSize = endAddr;
-            } else if (line.segment == SegmentType::DSEG) {
-                Address endAddr = line.address + line.code.size();
-                if (endAddr > dsegSize) csegSize = endAddr;
-            }
-        }
-    }
-    
-    // Write sizes
-    if (csegSize > 0) {
-        writer.writeProgramSize(csegSize);
-    }
-    if (dsegSize > 0) {
-        writer.writeDataSize(dsegSize);
-    }
-    
-    // Write PUBLIC symbols (Entry Points)
-    auto publicSymbols = symbolTable_.getPublicSymbols();
-    for (const Symbol* sym : publicSymbols) {
-        // Find symbol name from symbol table
-        std::string symbolName;
-        for (const auto& pair : symbolTable_.getAllSymbols()) {
-            if (&pair.second == sym) {
-                symbolName = pair.first;
-                break;
-            }
-        }
-        
-        if (symbolName.empty()) continue;
-        
-        // Determine item type based on segment
-        ItemType itemType = ItemType::Absolute;
-        if (sym->segment == SegmentType::CSEG) {
-            itemType = ItemType::ProgramRel;
-        } else if (sym->segment == SegmentType::DSEG) {
-            itemType = ItemType::DataRel;
-        }
-        
-        writer.writeEntrySymbol(symbolName, sym->value, itemType);
-    }
-    
-    // Write EXTERNAL symbols (Chain Externals)
-    auto externalSymbols = symbolTable_.getExternalSymbols();
-    for (const Symbol* sym : externalSymbols) {
-        // Find symbol name from symbol table
-        std::string symbolName;
-        for (const auto& pair : symbolTable_.getAllSymbols()) {
-            if (&pair.second == sym) {
-                symbolName = pair.first;
-                break;
-            }
-        }
-        
-        if (symbolName.empty()) continue;
-        
-        writer.writeChainExternal(symbolName);
-    }
-    
-    // Write code/data by segment
-    // Group consecutive bytes by segment
-    std::vector<Byte> currentData;
-    SegmentType currentSegType = SegmentType::CSEG;
-    Address currentAddr = 0;
-    bool hasData = false;
-    
-    for (const auto& line : lines_) {
-        if (line.code.empty()) continue;
-        
-        // If segment changed or address is not continuous, flush current data
-        if (hasData && (line.segment != currentSegType || line.address != currentAddr)) {
-            // Write accumulated data
-            if (currentSegType == SegmentType::ASEG) {
-                writer.writeAbsoluteData(currentData);
-            } else if (currentSegType == SegmentType::CSEG) {
-                writer.writeProgramData(currentData);
-            } else if (currentSegType == SegmentType::DSEG) {
-                writer.writeDataData(currentData);
-            }
-            currentData.clear();
-            hasData = false;
-        }
-        
-        // If starting new segment, set location
-        if (!hasData) {
-            ItemType locType = ItemType::Absolute;
-            if (line.segment == SegmentType::CSEG) {
-                locType = ItemType::ProgramRel;
-            } else if (line.segment == SegmentType::DSEG) {
-                locType = ItemType::DataRel;
-            }
-            writer.setLocation(line.address, locType);
-            currentSegType = line.segment;
-            currentAddr = line.address;
-        }
-        
-        // Accumulate bytes
-        for (Byte b : line.code) {
-            currentData.push_back(b);
-        }
-        currentAddr += line.code.size();
-        hasData = true;
-    }
-    
-    // Flush remaining data
-    if (hasData) {
-        if (currentSegType == SegmentType::ASEG) {
-            writer.writeAbsoluteData(currentData);
-        } else if (currentSegType == SegmentType::CSEG) {
-            writer.writeProgramData(currentData);
-        } else if (currentSegType == SegmentType::DSEG) {
-            writer.writeDataData(currentData);
-        }
-    }
-    
-    // End module and file
-    writer.endModule();
-    writer.endFile();
-    
-    // Write to file
-    return writer.writeToFile(filename);
+    return writer.writeFromParser(*this, filename, moduleName);
 }
 
 //=============================================================================
