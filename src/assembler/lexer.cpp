@@ -94,7 +94,9 @@ Token Lexer::peekToken() {
 void Lexer::skipWhitespace() {
     while (!isAtEnd()) {
         char c = peek();
-        if (c == ' ' || c == '\t') {
+        // Skip spaces, tabs, and other control characters (except newlines)
+        // This handles CP/M era files with form feeds and other control codes
+        if (c == ' ' || c == '\t' || (c > 0 && c < 32 && c != '\n' && c != '\r')) {
             advance();
         } else {
             break;
