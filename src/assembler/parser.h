@@ -202,6 +202,15 @@ private:
                                 const std::string& filename);
     
     /**
+     * @brief Implementation of macro expansion (single pass)
+     */
+    bool expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLines,
+                                    std::vector<std::string>& expandedLines,
+                                    std::vector<SourceLocation>& sourceLocations,
+                                    const std::string& filename,
+                                    bool& expandedAnything);
+    
+    /**
      * @brief Helper to add expanded line with source location tracking
      */
     void addExpandedLine(std::vector<std::string>& expandedLines, 

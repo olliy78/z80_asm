@@ -670,6 +670,11 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
                 else if (upperMnemonic == ".LIST" || upperMnemonic == ".XLIST") {
                     // Listing control directives (ignore for now)
                 }
+                else if (upperMnemonic == ".RADIX") {
+                    // .RADIX: Set default number base (ignore for now, always use decimal/hex notation)
+                    // Skip the radix value
+                    token = lexer.nextToken();
+                }
                 else if (upperMnemonic == "PAGE" || upperMnemonic == ".PAGE") {
                     // Page control directive (ignore for now)
                     // Skip optional page length parameter
@@ -1434,6 +1439,38 @@ bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
                                     std::vector<std::string>& expandedLines,
                                     std::vector<SourceLocation>& sourceLocations,
                                     const std::string& filename) {
+    // Do multiple passes to handle nested macro calls
+    // Pass 1: Expand all macros
+    std::vector<std::string> tempExpanded;
+    std::vector<SourceLocation> tempLocations;
+    
+    bool expandedAnything = false;
+    expandSourceWithMacrosImpl(sourceLines, tempExpanded, tempLocations, filename, expandedAnything);
+    
+    // Pass 2+: Keep expanding until no more macros are found (up to max iterations)
+    const int MAX_ITERATIONS = 10;
+    for (int iteration = 0; iteration < MAX_ITERATIONS && expandedAnything; ++iteration) {
+        std::vector<std::string> nextExpanded;
+        std::vector<SourceLocation> nextLocations;
+        expandedAnything = false;
+        
+        expandSourceWithMacrosImpl(tempExpanded, nextExpanded, nextLocations, filename, expandedAnything);
+        
+        tempExpanded = std::move(nextExpanded);
+        tempLocations = std::move(nextLocations);
+    }
+    
+    expandedLines = std::move(tempExpanded);
+    sourceLocations = std::move(tempLocations);
+    
+    return true;
+}
+
+bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLines,
+                                        std::vector<std::string>& expandedLines,
+                                        std::vector<SourceLocation>& sourceLocations,
+                                        const std::string& filename,
+                                        bool& expandedAnything) {
     bool inMacroDef = false;
     bool inReptDef = false;
     bool inIRPDef = false;
@@ -1496,13 +1533,17 @@ bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
                                    upperToken == ".8080" || upperToken == ".LIST" ||
                                    upperToken == ".XLIST" || upperToken == ".TFCOND" ||
                                    upperToken == ".SFCOND" || upperToken == ".LFCOND" ||
+                                   upperToken == ".RADIX" ||
                                    upperToken == "INCLUDE" ||
                                    upperToken == "MACRO" || upperToken == "REPT" ||
                                    upperToken == "IRP" || upperToken == "IRPC" ||
                                    upperToken == "ENDM" || upperToken == "LOCAL" ||
                                    upperToken == "EXITM");
                 
-                if (!isDirective && next.type == TokenType::Identifier) {
+                // Check if it's a macro name (don't treat as label)
+                bool isMacro = macroProcessor_.isMacroDefined(token.text);
+                
+                if (!isDirective && !isMacro && next.type == TokenType::Identifier) {
                     // Assume it's a label without colon
                     labelName = token.text;
                     token = lexer.nextToken();
@@ -1739,6 +1780,7 @@ bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
                     inMacroDef = false;
                 } else if (inReptDef) {
                     macroProcessor_.beginRepeat(repeatCount, currentBody, localLabels);
+                    expandedAnything = true;  // Mark that we expanded a macro
                     inReptDef = false;
                     
                     // Expand immediately
@@ -1752,6 +1794,7 @@ bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
                     }
                 } else if (inIRPDef) {
                     macroProcessor_.beginIRP(iteratorName, iteratorValues, currentBody, localLabels);
+                    expandedAnything = true;  // Mark that we expanded a macro
                     inIRPDef = false;
                     
                     // Expand immediately
@@ -1765,6 +1808,7 @@ bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
                     }
                 } else if (inIRPCDef) {
                     macroProcessor_.beginIRPC(iteratorName, irpcChars, currentBody, localLabels);
+                    expandedAnything = true;  // Mark that we expanded a macro
                     inIRPCDef = false;
                     
                     // Expand immediately
@@ -1826,6 +1870,7 @@ bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
                     
                     // Begin expansion
                     macroProcessor_.beginExpansion(macroName, arguments);
+                    expandedAnything = true;  // Mark that we expanded a macro
                     
                     // Expand all lines from this macro
                     while (macroProcessor_.isExpanding()) {
