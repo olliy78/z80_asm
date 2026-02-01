@@ -2,6 +2,7 @@
 add_library(z80common STATIC
     types.cpp
     utils.cpp
+    file_utils.cpp
 )
 
 target_include_directories(z80common PUBLIC
