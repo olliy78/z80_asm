@@ -197,12 +197,95 @@ public:
      * @param evaluator Function that evaluates expressions and returns their value
      * 
      * This callback is used for %(expression) syntax in macro bodies.
-     * The function should evaluate the expression and return its numeric value.
+     * The function should evaluate the expression and returns its numeric value.
      * If evaluation fails, it should return 0.
      */
     void setExpressionEvaluator(std::function<int64_t(const std::string&)> evaluator) {
         expressionEvaluator_ = evaluator;
     }
+    
+    /**
+     * @brief Parse and collect macro definition from source lines
+     * 
+     * Parses MACRO...ENDM block starting from the MACRO directive line.
+     * Collects the macro body, parameters, and LOCAL declarations.
+     * 
+     * @param sourceLines Source code lines (full file or remaining lines)
+     * @param startIndex Index of MACRO directive line
+     * @param macroName Name of the macro (from label before MACRO)
+     * @param macro Output: parsed macro definition
+     * @param endIndex Output: index of ENDM line (exclusive)
+     * @return true if parsed successfully, false on error
+     */
+    bool parseMacroDefinition(const std::vector<std::string>& sourceLines,
+                             size_t startIndex,
+                             const std::string& macroName,
+                             MacroDefinition& macro,
+                             size_t& endIndex);
+    
+    /**
+     * @brief Parse and collect REPT block from source lines
+     * 
+     * Parses REPT...ENDM block starting from the REPT directive line.
+     * 
+     * @param sourceLines Source code lines
+     * @param startIndex Index of REPT directive line
+     * @param repeatCount Number of repetitions
+     * @param body Output: body lines to repeat
+     * @param localLabels Output: LOCAL label declarations
+     * @param endIndex Output: index of ENDM line (exclusive)
+     * @return true if parsed successfully
+     */
+    bool parseReptBlock(const std::vector<std::string>& sourceLines,
+                       size_t startIndex,
+                       int repeatCount,
+                       std::vector<std::string>& body,
+                       std::vector<std::string>& localLabels,
+                       size_t& endIndex);
+    
+    /**
+     * @brief Parse and collect IRP block from source lines
+     * 
+     * Parses IRP...ENDM block starting from the IRP directive line.
+     * 
+     * @param sourceLines Source code lines
+     * @param startIndex Index of IRP directive line
+     * @param iteratorName Iterator parameter name
+     * @param values List of values to iterate over
+     * @param body Output: body lines for each iteration
+     * @param localLabels Output: LOCAL label declarations
+     * @param endIndex Output: index of ENDM line (exclusive)
+     * @return true if parsed successfully
+     */
+    bool parseIRPBlock(const std::vector<std::string>& sourceLines,
+                      size_t startIndex,
+                      const std::string& iteratorName,
+                      const std::vector<std::string>& values,
+                      std::vector<std::string>& body,
+                      std::vector<std::string>& localLabels,
+                      size_t& endIndex);
+    
+    /**
+     * @brief Parse and collect IRPC block from source lines
+     * 
+     * Parses IRPC...ENDM block starting from the IRPC directive line.
+     * 
+     * @param sourceLines Source code lines
+     * @param startIndex Index of IRPC directive line
+     * @param iteratorName Iterator parameter name
+     * @param chars String of characters to iterate over
+     * @param body Output: body lines for each character
+     * @param localLabels Output: LOCAL label declarations
+     * @param endIndex Output: index of ENDM line (exclusive)
+     * @return true if parsed successfully
+     */
+    bool parseIRPCBlock(const std::vector<std::string>& sourceLines,
+                       size_t startIndex,
+                       const std::string& iteratorName,
+                       const std::string& chars,
+                       std::vector<std::string>& body,
+                       std::vector<std::string>& localLabels,
+                       size_t& endIndex);
 
 private:
     /**

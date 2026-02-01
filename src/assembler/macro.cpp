@@ -7,11 +7,13 @@
  */
 
 #include "macro.h"
+#include "lexer.h"
 #include "common/utils.h"
 #include <sstream>
 #include <algorithm>
 #include <iomanip>
 #include <iostream>
+#include <cctype>
 
 namespace z80 {
 
@@ -474,5 +476,160 @@ std::string MacroProcessor::evaluateExpressions(const std::string& line, const M
     return result;
 }
 
+// ============================================================================
+// Macro Definition Parsing
+// ============================================================================
+
+bool MacroProcessor::parseMacroDefinition(const std::vector<std::string>& sourceLines,
+                                         size_t startIndex,
+                                         const std::string& macroName,
+                                         MacroDefinition& macro,
+                                         size_t& endIndex) {
+    macro.type = MacroType::UserDefined;
+    macro.name = macroName;
+    macro.parameters.clear();
+    macro.body.clear();
+    macro.localLabels.clear();
+    
+    // Parse MACRO line for parameters
+    const std::string& macroLine = sourceLines[startIndex];
+    Lexer lexer(macroLine, "");
+    Token token = lexer.nextToken();
+    
+    // Skip to MACRO keyword
+    while (token.type != TokenType::EndOfLine && token.type != TokenType::EndOfFile) {
+        std::string upper = token.text;
+        for (char& c : upper) c = std::toupper(c);
+        if (upper == "MACRO") {
+            // Parse parameters after MACRO
+            token = lexer.nextToken();
+            while (token.type == TokenType::Identifier) {
+                macro.parameters.push_back(token.text);
+                token = lexer.nextToken();
+                if (token.type == TokenType::Comma) {
+                    token = lexer.nextToken();
+                }
+            }
+            break;
+        }
+        token = lexer.nextToken();
+    }
+    
+    // Collect body until ENDM
+    size_t i = startIndex + 1;
+    for (; i < sourceLines.size(); ++i) {
+        const std::string& line = sourceLines[i];
+        Lexer bodyLexer(line, "");
+        Token bodyToken = bodyLexer.nextToken();
+        
+        if (bodyToken.type == TokenType::Identifier) {
+            std::string upper = bodyToken.text;
+            for (char& c : upper) c = std::toupper(c);
+            
+            // Check for LOCAL declaration
+            if (upper == "LOCAL") {
+                bodyToken = bodyLexer.nextToken();
+                while (bodyToken.type == TokenType::Identifier) {
+                    macro.localLabels.push_back(bodyToken.text);
+                    bodyToken = bodyLexer.nextToken();
+                    if (bodyToken.type == TokenType::Comma) {
+                        bodyToken = bodyLexer.nextToken();
+                    }
+                }
+                continue;
+            }
+            
+            // Check for ENDM
+            if (upper == "ENDM") {
+                endIndex = i + 1;
+                return true;
+            }
+        }
+        
+        // Add to body
+        macro.body.push_back(line);
+    }
+    
+    // No ENDM found - error
+    endIndex = i;
+    return false;
+}
+
+bool MacroProcessor::parseReptBlock(const std::vector<std::string>& sourceLines,
+                                   size_t startIndex,
+                                   int /* repeatCount */,
+                                   std::vector<std::string>& body,
+                                   std::vector<std::string>& localLabels,
+                                   size_t& endIndex) {
+    body.clear();
+    localLabels.clear();
+    
+    // Collect body until ENDM
+    size_t i = startIndex + 1;
+    for (; i < sourceLines.size(); ++i) {
+        const std::string& line = sourceLines[i];
+        Lexer lexer(line, "");
+        Token token = lexer.nextToken();
+        
+        if (token.type == TokenType::Identifier) {
+            std::string upper = token.text;
+            for (char& c : upper) c = std::toupper(c);
+            
+            // Check for LOCAL declaration
+            if (upper == "LOCAL") {
+                token = lexer.nextToken();
+                while (token.type == TokenType::Identifier) {
+                    localLabels.push_back(token.text);
+                    token = lexer.nextToken();
+                    if (token.type == TokenType::Comma) {
+                        token = lexer.nextToken();
+                    }
+                }
+                continue;
+            }
+            
+            // Check for ENDM
+            if (upper == "ENDM") {
+                endIndex = i + 1;
+                return true;
+            }
+        }
+        
+        // Add to body
+        body.push_back(line);
+    }
+    
+    // No ENDM found
+    endIndex = i;
+    return false;
+}
+
+bool MacroProcessor::parseIRPBlock(const std::vector<std::string>& sourceLines,
+                                  size_t startIndex,
+                                  const std::string& /* iteratorName */,
+                                  const std::vector<std::string>& /* values */,
+                                  std::vector<std::string>& body,
+                                  std::vector<std::string>& localLabels,
+                                  size_t& endIndex) {
+    body.clear();
+    localLabels.clear();
+    
+    // Collect body until ENDM (same as REPT)
+    return parseReptBlock(sourceLines, startIndex, 0, body, localLabels, endIndex);
+}
+
+bool MacroProcessor::parseIRPCBlock(const std::vector<std::string>& sourceLines,
+                                   size_t startIndex,
+                                   const std::string& /* iteratorName */,
+                                   const std::string& /* chars */,
+                                   std::vector<std::string>& body,
+                                   std::vector<std::string>& localLabels,
+                                   size_t& endIndex) {
+    body.clear();
+    localLabels.clear();
+    
+    // Collect body until ENDM (same as REPT)
+    return parseReptBlock(sourceLines, startIndex, 0, body, localLabels, endIndex);
+}
 
 } // namespace z80
