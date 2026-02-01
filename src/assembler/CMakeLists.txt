@@ -15,6 +15,7 @@ add_executable(m80
     errors.cpp
     macro.cpp
     conditional.cpp
+    operand_analyzer.cpp
 )
 
 target_link_libraries(m80 PRIVATE z80common)

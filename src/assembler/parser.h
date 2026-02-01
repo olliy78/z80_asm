@@ -23,6 +23,7 @@
 #include "errors.h"
 #include "macro.h"
 #include "conditional.h"
+#include "operand_analyzer.h"
 
 namespace z80 {
 
@@ -159,38 +160,6 @@ private:
     bool generateInstruction(ParsedLine& line, const std::string& filename);
     
     /**
-     * @brief Parse operands from token stream
-     * @param lexer Lexer positioned after mnemonic
-     * @param operands Output vector of operand strings
-     * @return Combined operand string for logging
-     */
-    std::string parseOperands(Lexer& lexer, std::vector<std::string>& operands);
-    
-    /**
-     * @brief Find best matching instruction variant for given operands
-     * @param mnemonic Instruction mnemonic
-     * @param operands Parsed operand list
-     * @return Pointer to instruction info, or nullptr
-     */
-    const InstructionInfo* findInstructionVariant(const std::string& mnemonic,
-                                                   const std::vector<std::string>& operands);
-    
-    /**
-     * @brief Convert operand to addressing pattern
-     * @param operand Single operand string
-     * @param mnemonic Instruction mnemonic (for context-sensitive parsing)
-     * @return Pattern like "A", "N", "NN", "(HL)", "(IX+D)", etc.
-     */
-    std::string operandToPattern(const std::string& operand, const std::string& mnemonic = "");
-    
-    /**
-     * @brief Check if operand is a register
-     * @param operand Operand string
-     * @return true if it's a register name
-     */
-    bool isRegisterOperand(const std::string& operand);
-    
-    /**
      * @brief Expand source lines with macro processing
      * @param sourceLines Original source lines
      * @param expandedLines Output: expanded lines with macros processed
@@ -223,6 +192,7 @@ private:
 
     SymbolTable symbolTable_;           ///< Symbol table
     Z80Instructions instructions_;      ///< Z80 instruction set
+    OperandAnalyzer operandAnalyzer_;   ///< Operand analyzer
     MacroProcessor macroProcessor_;     ///< Macro processor
     ConditionalProcessor conditionalProcessor_; ///< Conditional assembly processor
     std::vector<ParsedLine> lines_;     ///< Parsed lines
