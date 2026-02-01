@@ -12,6 +12,76 @@
 
 namespace z80 {
 
+// Helper function to split line at CR (\r) if not followed by LF
+// CP/M files sometimes have CR without LF as line separator
+static std::vector<std::string> splitAtCR(const std::string& line) {
+    std::vector<std::string> result;
+    std::string current;
+    
+    for (size_t i = 0; i < line.length(); i++) {
+        if (line[i] == '\r') {
+            // Check if next char is LF
+            if (i + 1 < line.length() && line[i+1] == '\n') {
+                // CR+LF - keep both, it's normal line ending
+                current += line[i];
+            } else {
+                // CR without LF - treat as line separator
+                result.push_back(current);
+                current.clear();
+            }
+        } else if (line[i] == '\n') {
+            // LF - end current line
+            result.push_back(current);
+            current.clear();
+        } else {
+            current += line[i];
+        }
+    }
+    
+    // Don't forget the last line if there's content
+    if (!current.empty()) {
+        result.push_back(current);
+    }
+    
+    return result;
+}
+
+// Helper function to clean CP/M control characters from line
+static std::string cleanCpmLine(const std::string& line) {
+    std::string cleaned;
+    cleaned.reserve(line.length());
+    
+    bool afterCR = false; // Track if we're right after a CR
+    
+    for (size_t i = 0; i < line.length(); i++) {
+        unsigned char c = static_cast<unsigned char>(line[i]);
+        
+        // Track CR (carriage return)
+        if (c == '\r') {
+            cleaned += line[i];
+            afterCR = true;
+            continue;
+        }
+        
+        // Skip control characters at start of line OR after CR (common in CP/M files)
+        // This includes 0x8A which appears before some labels
+        if ((cleaned.empty() || afterCR) && c >= 0x80 && c <= 0x9F) {
+            continue; // Skip high control characters at line start or after CR
+        }
+        
+        afterCR = false; // Reset after first non-CR character
+        
+        // Skip low control characters (except TAB, CR, LF)
+        if (c < 32 && c != '\t' && c != '\r' && c != '\n') {
+            continue;
+        }
+        
+        cleaned += line[i];
+    }
+    
+    return cleaned;
+}
+
 Parser::Parser() 
     : locationCounter_(0)
     , currentSegment_(SegmentType::CSEG)
@@ -56,15 +126,29 @@ bool Parser::assemble(const std::string& filename) {
     std::string line;
     while (std::getline(file, line)) {
         // CP/M files use Control-Z (0x1A) as EOF marker
-        // Stop reading if we encounter it
+        // Check BEFORE cleaning to catch EOF marker
         size_t ctrlZPos = line.find('\x1A');
         if (ctrlZPos != std::string::npos) {
             // Truncate line at Control-Z
             line = line.substr(0, ctrlZPos);
-            sourceLines.push_back(line);
+            // Clean what's before Control-Z
+            line = cleanCpmLine(line);
+            // Split at CR if needed
+            auto splitLines = splitAtCR(line);
+            for (const auto& l : splitLines) {
+                sourceLines.push_back(l);
+            }
             break; // Stop reading file
         }
-        sourceLines.push_back(line);
+        
+        // Clean CP/M control characters
+        line = cleanCpmLine(line);
+        
+        // Split at CR (carriage return without LF) - common in CP/M files
+        auto splitLines = splitAtCR(line);
+        for (const auto& l : splitLines) {
+            sourceLines.push_back(l);
+        }
     }
     
     // Pass 1: Build symbol table
@@ -1611,14 +1695,29 @@ bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLi
                     std::string includeLine;
                     while (std::getline(includeStream, includeLine)) {
                         // CP/M files use Control-Z (0x1A) as EOF marker
+                        // Check BEFORE cleaning
                         size_t ctrlZPos = includeLine.find('\x1A');
                         if (ctrlZPos != std::string::npos) {
                             // Truncate line at Control-Z
                             includeLine = includeLine.substr(0, ctrlZPos);
-                            includeLines.push_back(includeLine);
+                            // Clean what's before Control-Z
+                            includeLine = cleanCpmLine(includeLine);
+                            // Split at CR if needed
+                            auto splitLines = splitAtCR(includeLine);
+                            for (const auto& l : splitLines) {
+                                includeLines.push_back(l);
+                            }
                             break; // Stop reading file
                         }
-                        includeLines.push_back(includeLine);
+                        
+                        // Clean CP/M control characters
+                        includeLine = cleanCpmLine(includeLine);
+                        
+                        // Split at CR
+                        auto splitLines = splitAtCR(includeLine);
+                        for (const auto& l : splitLines) {
+                            includeLines.push_back(l);
+                        }
                     }
                     includeStream.close();
                     
