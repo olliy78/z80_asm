@@ -346,7 +346,8 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
         }
         
         ParsedLine parsedLine;
-        parsedLine.lineNumber = lineNum;
+        parsedLine.lineNumber = errorLineNum;  // Use original source line number
+        parsedLine.sourceFile = errorFilename;  // Use original source filename
         parsedLine.address = locationCounter_;
         parsedLine.segment = currentSegment_;
         
@@ -929,7 +930,7 @@ bool Parser::pass2(const std::vector<std::string>& sourceLines, const std::strin
         }
         else {
             // It's an instruction - generate code
-            if (!generateInstruction(line, filename)) {
+            if (!generateInstruction(line, line.sourceFile)) {
                 return false;
             }
         }
@@ -962,7 +963,7 @@ bool Parser::generateDB(ParsedLine& line, const std::string& filename) {
             AssemblyError err;
             err.level = ErrorLevel::Error;
             err.message = "Error evaluating DB expression '" + operand + "': " + result.errorMessage;
-            err.filename = filename;
+            err.filename = line.sourceFile;
             err.line = line.lineNumber;
             errors_.push_back(err);
             return false;
@@ -988,7 +989,7 @@ bool Parser::generateDW(ParsedLine& line, const std::string& filename) {
             AssemblyError err;
             err.level = ErrorLevel::Error;
             err.message = "Error evaluating DW expression '" + operand + "': " + result.errorMessage;
-            err.filename = filename;
+            err.filename = line.sourceFile;
             err.line = line.lineNumber;
             errors_.push_back(err);
             return false;
@@ -1069,7 +1070,7 @@ bool Parser::generateInstruction(ParsedLine& line, const std::string& filename) 
                     AssemblyError err;
                     err.level = ErrorLevel::Error;
                     err.message = "Error evaluating operand '" + valueOperand + "': " + result.errorMessage;
-                    err.filename = filename;
+                    err.filename = line.sourceFile;
                     err.line = line.lineNumber;
                     errors_.push_back(err);
                     return false;
@@ -1092,7 +1093,7 @@ bool Parser::generateInstruction(ParsedLine& line, const std::string& filename) 
                             err.level = ErrorLevel::Error;
                             err.message = "JR offset out of range (" + std::to_string(offset) + 
                                         " bytes, must be -128 to +127)";
-                            err.filename = filename;
+                            err.filename = line.sourceFile;
                             err.line = line.lineNumber;
                             errors_.push_back(err);
                             return false;
@@ -1127,7 +1128,7 @@ bool Parser::generateInstruction(ParsedLine& line, const std::string& filename) 
     AssemblyError err;
     err.level = ErrorLevel::Error;
     err.message = "Unknown instruction: " + line.mnemonic + " " + line.operandString;
-    err.filename = filename;
+    err.filename = line.sourceFile;
     err.line = line.lineNumber;
     err.column = 0;
     errors_.push_back(err);
@@ -2062,8 +2063,12 @@ bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLi
         if (inMacroDef || inReptDef || inIRPDef || inIRPCDef) {
             currentBody.push_back(line);
         } else {
-            // Normal line, pass through
+            // Normal line, pass through with source location
             expandedLines.push_back(line);
+            SourceLocation loc;
+            loc.filename = filename;
+            loc.lineNumber = lineIdx + 1;
+            sourceLocations.push_back(loc);
         }
     }
     

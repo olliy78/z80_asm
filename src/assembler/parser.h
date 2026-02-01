@@ -45,7 +45,8 @@ struct ParsedLine {
     std::vector<std::string> operands;  ///< Operands (expressions)
     std::string operandString;          ///< Full operand string for instruction lookup
     std::string comment;                ///< Comment text
-    int lineNumber;                     ///< Source line number (in expanded list)
+    int lineNumber;                     ///< Original source line number (for error reporting)
+    std::string sourceFile;             ///< Original source filename (for error reporting)
     Address address;                    ///< Address assigned in pass 1
     std::vector<Byte> code;             ///< Generated machine code (pass 2)
     SegmentType segment;                ///< Current segment type
