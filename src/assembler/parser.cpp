@@ -24,6 +24,12 @@ Parser::Parser()
     , phaseOffset_(0)
     , inMacroDefinition_(false)
 {
+    // Set up expression evaluator for macro %(expression) syntax
+    macroProcessor_.setExpressionEvaluator([this](const std::string& expr) -> int64_t {
+        ExpressionEvaluator evaluator(symbolTable_, locationCounter_, currentSegment_);
+        ExpressionResult result = evaluator.evaluate(expr);
+        return result.valid ? result.value : 0;
+    });
 }
 
 bool Parser::assemble(const std::string& filename) {
@@ -49,6 +55,15 @@ bool Parser::assemble(const std::string& filename) {
     std::vector<std::string> sourceLines;
     std::string line;
     while (std::getline(file, line)) {
+        // CP/M files use Control-Z (0x1A) as EOF marker
+        // Stop reading if we encounter it
+        size_t ctrlZPos = line.find('\x1A');
+        if (ctrlZPos != std::string::npos) {
+            // Truncate line at Control-Z
+            line = line.substr(0, ctrlZPos);
+            sourceLines.push_back(line);
+            break; // Stop reading file
+        }
         sourceLines.push_back(line);
     }
     
@@ -1595,6 +1610,14 @@ bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLi
                     std::vector<std::string> includeLines;
                     std::string includeLine;
                     while (std::getline(includeStream, includeLine)) {
+                        // CP/M files use Control-Z (0x1A) as EOF marker
+                        size_t ctrlZPos = includeLine.find('\x1A');
+                        if (ctrlZPos != std::string::npos) {
+                            // Truncate line at Control-Z
+                            includeLine = includeLine.substr(0, ctrlZPos);
+                            includeLines.push_back(includeLine);
+                            break; // Stop reading file
+                        }
                         includeLines.push_back(includeLine);
                     }
                     includeStream.close();

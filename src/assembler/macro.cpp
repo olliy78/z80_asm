@@ -7,9 +7,11 @@
  */
 
 #include "macro.h"
+#include "common/utils.h"
 #include <sstream>
 #include <algorithm>
 #include <iomanip>
+#include <iostream>
 
 namespace z80 {
 
@@ -267,6 +269,9 @@ void MacroProcessor::clear() {
 std::string MacroProcessor::expandLine(const std::string& line, const MacroExpansion& expansion) {
     std::string result = substituteParameters(line, expansion);
     
+    // After parameter substitution, evaluate %(expression) syntax
+    result = evaluateExpressions(result, expansion);
+    
     // Substitute local labels
     // We need to replace local label references with unique names
     // This is done by finding labels that match the local label list
@@ -384,5 +389,90 @@ bool MacroProcessor::isLocalLabel(const std::string& label, const MacroExpansion
     return std::find(macro->localLabels.begin(), macro->localLabels.end(), label) 
            != macro->localLabels.end();
 }
+
+std::string MacroProcessor::evaluateExpressions(const std::string& line, const MacroExpansion& expansion) {
+    std::string result;
+    result.reserve(line.length() * 2);
+    
+    const MacroDefinition* macro = expansion.definition;
+    
+    for (size_t i = 0; i < line.length(); i++) {
+        // Check for %(expression) syntax for expression evaluation
+        if (line[i] == '%' && i + 1 < line.length() && line[i+1] == '(') {
+            // Find matching closing parenthesis
+            size_t start = i + 2;
+            size_t end = start;
+            int parenDepth = 1;
+            
+            while (end < line.length() && parenDepth > 0) {
+                if (line[end] == '(') {
+                    parenDepth++;
+                } else if (line[end] == ')') {
+                    parenDepth--;
+                }
+                if (parenDepth > 0) {
+                    end++;
+                }
+            }
+            
+            if (parenDepth == 0 && end > start) {
+                // Extract expression
+                std::string expr = line.substr(start, end - start);
+                
+                // Check if expression is a parameter name (without &), and substitute it
+                // M80 treats %(param) the same as %(&param)
+                bool isParameter = false;
+                for (size_t p = 0; p < macro->parameters.size(); p++) {
+                    if (macro->parameters[p] == expr) {
+                        // Replace with actual argument value
+                        expr = expansion.arguments[p];
+                        isParameter = true;
+                        break;
+                    }
+                }
+                
+                // Check for IRP/IRPC iterator
+                if (!isParameter && (macro->type == MacroType::IndefiniteRP || macro->type == MacroType::IndefiniteRPC)) {
+                    if (macro->iteratorName == expr) {
+                        expr = expansion.arguments[0];
+                        isParameter = true;
+                    }
+                }
+                
+                // Now evaluate the expression
+                int64_t value = 0;
+                bool evaluated = false;
+                
+                // First try to parse as a simple number
+                int base;
+                if (parseNumber(expr, value, base)) {
+                    evaluated = true;
+                } else if (expressionEvaluator_) {
+                    // Try full expression evaluation (may work in Pass 1/2 with symbols)
+                    value = expressionEvaluator_(expr);
+                    evaluated = true;
+                }
+                
+                if (evaluated) {
+                    // Convert to string (use hex for now, can be improved with RADIX support)
+                    std::ostringstream oss;
+                    oss << std::hex << std::uppercase << value;
+                    result += oss.str();
+                } else {
+                    // Can't evaluate, output empty (M80 behavior when can't evaluate)
+                    result += "";
+                }
+                
+                i = end; // Skip past the closing parenthesis
+                continue;
+            }
+        }
+        
+        result += line[i];
+    }
+    
+    return result;
+}
+
 
 } // namespace z80

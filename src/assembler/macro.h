@@ -20,6 +20,7 @@
 #include <vector>
 #include <map>
 #include <memory>
+#include <functional>
 
 namespace z80 {
 
@@ -191,6 +192,18 @@ public:
      */
     void clear();
     
+    /**
+     * @brief Set expression evaluator callback
+     * @param evaluator Function that evaluates expressions and returns their value
+     * 
+     * This callback is used for %(expression) syntax in macro bodies.
+     * The function should evaluate the expression and return its numeric value.
+     * If evaluation fails, it should return 0.
+     */
+    void setExpressionEvaluator(std::function<int64_t(const std::string&)> evaluator) {
+        expressionEvaluator_ = evaluator;
+    }
+
 private:
     /**
      * @brief Expand line with parameter/iterator substitution
@@ -207,6 +220,14 @@ private:
      * @return Line with parameters substituted
      */
     std::string substituteParameters(const std::string& line, const MacroExpansion& expansion);
+    
+    /**
+     * @brief Evaluate %(expression) syntax in line
+     * @param line Line after parameter substitution
+     * @param expansion Current expansion (for accessing parameters)
+     * @return Line with %(expr) replaced by evaluated hex values
+     */
+    std::string evaluateExpressions(const std::string& line, const MacroExpansion& expansion);
     
     /**
      * @brief Generate unique local label name
@@ -233,6 +254,7 @@ private:
     std::map<std::string, MacroDefinition> macros_;     ///< Macro definitions by name
     std::vector<MacroExpansion> expansionStack_;        ///< Stack of active expansions
     int nextUniqueId_;                                   ///< Next unique ID for locals
+    std::function<int64_t(const std::string&)> expressionEvaluator_; ///< Callback for %(expr)
     
     static constexpr int MAX_EXPANSION_DEPTH = 100;     ///< Maximum nesting depth
 };
