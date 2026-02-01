@@ -365,6 +365,34 @@ ExpressionResult ExpressionEvaluator::parsePrimaryExpression(const std::string& 
         return ExpressionResult(locationCounter_, type);
     }
     
+    // Character literal 'X'
+    if (expr[pos] == '\'') {
+        size_t startPos = pos;
+        pos++; // Skip opening quote
+        
+        if (pos >= expr.length()) {
+            ExpressionResult result;
+            result.valid = false;
+            result.errorMessage = "Unterminated character literal";
+            return result;
+        }
+        
+        // Get the character value
+        int value = static_cast<unsigned char>(expr[pos]);
+        pos++; // Move past the character
+        
+        // Check for closing quote
+        if (pos >= expr.length() || expr[pos] != '\'') {
+            ExpressionResult result;
+            result.valid = false;
+            result.errorMessage = "Unterminated character literal";
+            return result;
+        }
+        pos++; // Skip closing quote
+        
+        return ExpressionResult(value, ExpressionType::Absolute);
+    }
+    
     // Number
     if (std::isdigit(expr[pos])) {
         return parseNumber(expr, pos);

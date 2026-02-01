@@ -1028,6 +1028,7 @@ bool Parser::generateInstruction(ParsedLine& line, const std::string& filename) 
 std::string Parser::parseOperands(Lexer& lexer, std::vector<std::string>& operands) {
     std::string currentOperand;
     int parenDepth = 0;
+    TokenType lastTokenType = TokenType::EndOfFile;
     
     Token token = lexer.nextToken();
     
@@ -1038,7 +1039,28 @@ std::string Parser::parseOperands(Lexer& lexer, std::vector<std::string>& operan
                 operands.push_back(currentOperand);
                 currentOperand.clear();
             }
+            lastTokenType = TokenType::Comma;
         } else {
+            // Determine if we need space before this token
+            bool needSpace = false;
+            if (!currentOperand.empty() && lastTokenType != TokenType::LeftParen && 
+                lastTokenType != TokenType::LeftBracket && token.type != TokenType::RightParen && 
+                token.type != TokenType::RightBracket && token.type != TokenType::Comma) {
+                // Add space between alphanumeric tokens (identifiers, numbers, and strings)
+                if ((lastTokenType == TokenType::Identifier || lastTokenType == TokenType::Number) &&
+                    (token.type == TokenType::Identifier || token.type == TokenType::Number || token.type == TokenType::String)) {
+                    needSpace = true;
+                }
+                // Also add space before string if last was not comma or paren
+                else if (token.type == TokenType::String && lastTokenType != TokenType::Comma) {
+                    needSpace = true;
+                }
+            }
+            
+            if (needSpace) {
+                currentOperand += " ";
+            }
+            
             // Part of current operand
             if (token.type == TokenType::LeftParen || token.type == TokenType::LeftBracket) {
                 parenDepth++;
@@ -1052,6 +1074,8 @@ std::string Parser::parseOperands(Lexer& lexer, std::vector<std::string>& operan
             } else {
                 currentOperand += token.text;
             }
+            
+            lastTokenType = token.type;
         }
         
         token = lexer.nextToken();
@@ -1540,8 +1564,27 @@ bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
                     expandSourceWithMacros(includeLines, expandedInclude, includeLocations, includePath);
                     
                     // Add expanded lines to output WITH their source locations
+                    // If there's a label, prepend it to the first non-empty, non-comment line
+                    bool labelAttached = false;
                     for (size_t i = 0; i < expandedInclude.size(); ++i) {
-                        expandedLines.push_back(expandedInclude[i]);
+                        std::string outputLine = expandedInclude[i];
+                        
+                        // Attach label to first meaningful line (not empty, not just comment)
+                        if (!labelAttached && !labelName.empty()) {
+                            std::string trimmed = outputLine;
+                            // Trim leading whitespace
+                            size_t firstNonSpace = trimmed.find_first_not_of(" \t");
+                            if (firstNonSpace != std::string::npos) {
+                                trimmed = trimmed.substr(firstNonSpace);
+                            }
+                            // Check if line is not empty and not just a comment
+                            if (!trimmed.empty() && trimmed[0] != ';') {
+                                outputLine = labelName + ": " + outputLine;
+                                labelAttached = true;
+                            }
+                        }
+                        
+                        expandedLines.push_back(outputLine);
                         if (i < includeLocations.size()) {
                             sourceLocations.push_back(includeLocations[i]);
                         } else {
@@ -1550,6 +1593,16 @@ bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
                             expandedLines.pop_back(); // Remove the empty line we just added
                         }
                     }
+                    
+                    // If no meaningful line was found to attach the label to, add it as a separate line
+                    if (!labelAttached && !labelName.empty()) {
+                        expandedLines.push_back(labelName + ":");
+                        SourceLocation loc;
+                        loc.filename = filename;
+                        loc.lineNumber = lineIdx + 1;
+                        sourceLocations.push_back(loc);
+                    }
+                    
                     continue;
                 }
             }

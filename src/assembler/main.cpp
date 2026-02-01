@@ -92,6 +92,71 @@ int main(int argc, char* argv[]) {
                           << ": " << error.message << "\n";
             }
         }
+        
+        // Generate listing even on error for debugging (if requested)
+        if (generateListing) {
+            std::string listingFile = inputFile;
+            size_t listDotPos = listingFile.find_last_of('.');
+            if (listDotPos != std::string::npos) {
+                listingFile = listingFile.substr(0, listDotPos);
+            }
+            listingFile += ".prn";
+            
+            std::cerr << "\nGenerating listing for error analysis: " << listingFile << "\n";
+            
+            z80::Listing listing(listingFile);
+            
+            // Add all assembled lines to listing (even partial)
+            for (const auto& line : parser.getLines()) {
+                z80::ListingLine listLine;
+                listLine.lineNumber = line.lineNumber;
+                listLine.address = line.address;
+                listLine.code = line.code;
+                
+                // Reconstruct source line from parsed components
+                std::string sourceLine;
+                
+                // Check if line is just a directive (no code, no label ending with :)
+                bool isDirective = line.code.empty() && !line.mnemonic.empty() &&
+                                  (line.mnemonic == "NAME" || line.mnemonic == "TITLE" ||
+                                   line.mnemonic == "ORG" || line.mnemonic == "END" ||
+                                   line.mnemonic == "PUBLIC" || line.mnemonic == "EXTRN" ||
+                                   line.mnemonic == "ASEG" || line.mnemonic == "CSEG" || line.mnemonic == "DSEG");
+                
+                if (!line.label.empty() && !isDirective) {
+                    sourceLine = line.label;
+                    // Only add colon if it's a real label (not a directive name)
+                    if (line.label.find(':') == std::string::npos) {
+                        sourceLine += ":";
+                    }
+                    if (!line.mnemonic.empty()) sourceLine += " ";
+                }
+                if (!line.mnemonic.empty()) {
+                    if (isDirective && line.label.empty()) {
+                        sourceLine = "    ";  // Indent directives
+                    }
+                    sourceLine += line.mnemonic;
+                    if (!line.operandString.empty()) {
+                        sourceLine += " " + line.operandString;
+                    }
+                }
+                if (!line.comment.empty()) {
+                    if (!sourceLine.empty()) sourceLine += " ";
+                    sourceLine += "; " + line.comment;
+                }
+                
+                listLine.source = sourceLine;
+                listLine.hasAddress = !line.code.empty();
+                listLine.isError = false;
+                
+                listing.addLine(listLine);
+            }
+            
+            if (!listing.close()) {
+                std::cerr << "Warning: Failed to write listing file\n";
+            }
+        }
+        
         return 1;
     }
     
