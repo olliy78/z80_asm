@@ -12,8 +12,19 @@
 
 namespace z80 {
 
-// Helper function to split line at CR (\r) if not followed by LF
-// CP/M files sometimes have CR without LF as line separator
+//=============================================================================
+// CP/M File Format Handling
+//=============================================================================
+
+/**
+ * @brief Splits a line at carriage return (CR) characters not followed by line feed
+ * 
+ * CP/M files sometimes use CR alone as line separator instead of CR+LF.
+ * This function detects such cases and splits them into separate lines.
+ * 
+ * @param line Input line that may contain embedded CR characters
+ * @return Vector of lines split at standalone CR characters
+ */
 static std::vector<std::string> splitAtCR(const std::string& line) {
     std::vector<std::string> result;
     std::string current;
@@ -46,7 +57,18 @@ static std::vector<std::string> splitAtCR(const std::string& line) {
     return result;
 }
 
-// Helper function to clean CP/M control characters from line
+/**
+ * @brief Removes CP/M control characters from a line
+ * 
+ * CP/M files may contain control characters (0x00-0x1F and 0x80-0x9F) that need
+ * to be filtered out. This function:
+ * - Preserves TAB, CR, and LF characters
+ * - Removes high control characters (0x80-0x9F) at line start or after CR
+ * - Removes other low control characters
+ * 
+ * @param line Input line with potential control characters
+ * @return Cleaned line with control characters removed
+ */
 static std::string cleanCpmLine(const std::string& line) {
     std::string cleaned;
     cleaned.reserve(line.length());
@@ -81,6 +103,10 @@ static std::string cleanCpmLine(const std::string& line) {
     
     return cleaned;
 }
+
+//=============================================================================
+// Parser Constructor and Main Assembly Function
+//=============================================================================
 
 Parser::Parser() 
     : locationCounter_(0)
@@ -170,6 +196,10 @@ bool Parser::assemble(const std::string& filename) {
     
     return true;
 }
+
+//=============================================================================
+// Pass 1: Symbol Table Building and Address Calculation
+//=============================================================================
 
 bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::string& filename) {
     locationCounter_ = 0;
@@ -839,6 +869,10 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
     return true;
 }
 
+//=============================================================================
+// Pass 2: Machine Code Generation
+//=============================================================================
+
 bool Parser::pass2(const std::vector<std::string>& sourceLines, const std::string& filename) {
     // Pass 2: Generate actual machine code for each line
     locationCounter_ = 0;
@@ -939,6 +973,21 @@ bool Parser::pass2(const std::vector<std::string>& sourceLines, const std::strin
     return true;
 }
 
+//=============================================================================
+// Code Generation: DB, DW, and Instructions
+//=============================================================================
+
+/**
+ * @brief Generates byte data for DB (Define Byte) directive
+ * 
+ * Processes comma-separated operands which can be:
+ * - String literals: 'text' or "text" - each character becomes a byte
+ * - Numeric expressions: evaluated and stored as 8-bit values
+ * 
+ * @param line Parsed line containing DB directive and operands
+ * @param filename Source filename (unused but kept for consistency)
+ * @return true if successful, false on evaluation errors
+ */
 bool Parser::generateDB(ParsedLine& line, const std::string& filename) {
     // DB generates bytes from comma-separated expressions
     // Operands are already parsed in line.operands
@@ -976,6 +1025,16 @@ bool Parser::generateDB(ParsedLine& line, const std::string& filename) {
     return true;
 }
 
+/**
+ * @brief Generates word data for DW (Define Word) directive
+ * 
+ * Processes comma-separated numeric expressions and stores them as
+ * 16-bit words in little-endian format (LSB first, as used by Z80).
+ * 
+ * @param line Parsed line containing DW directive and operands
+ * @param filename Source filename (unused but kept for consistency)
+ * @return true if successful, false on evaluation errors
+ */
 bool Parser::generateDW(ParsedLine& line, const std::string& filename) {
     // DW generates 16-bit words from comma-separated expressions
     // Z80 uses little-endian (LSB first)
@@ -1003,6 +1062,19 @@ bool Parser::generateDW(ParsedLine& line, const std::string& filename) {
     return true;
 }
 
+/**
+ * @brief Generates machine code for a Z80 instruction
+ * 
+ * This function:
+ * 1. Finds the matching instruction variant based on operand patterns
+ * 2. Emits the instruction's opcode bytes
+ * 3. Evaluates and emits operand bytes (immediate values, addresses, displacements)
+ * 4. Handles special cases like JR relative addressing
+ * 
+ * @param line Parsed line containing instruction mnemonic and operands
+ * @param filename Source filename (unused but kept for consistency)
+ * @return true if instruction found and generated, false if unknown instruction
+ */
 bool Parser::generateInstruction(ParsedLine& line, const std::string& filename) {
     // Find instruction variant based on parsed operands
     auto info = findInstructionVariant(line.mnemonic, line.operands);
@@ -1136,6 +1208,22 @@ bool Parser::generateInstruction(ParsedLine& line, const std::string& filename) 
     return false;
 }
 
+//=============================================================================
+// Operand Parsing and Pattern Matching
+//=============================================================================
+
+/**
+ * @brief Parses operands from a lexer token stream
+ * 
+ * Handles comma-separated operands with proper handling of:
+ * - Parentheses depth tracking for expressions like (IX+5)
+ * - String literals with quotes
+ * - Whitespace between tokens
+ * 
+ * @param lexer Lexer positioned after the mnemonic
+ * @param operands Output vector of parsed operand strings
+ * @return Full operand string (all operands joined with commas)
+ */
 std::string Parser::parseOperands(Lexer& lexer, std::vector<std::string>& operands) {
     std::string currentOperand;
     int parenDepth = 0;
@@ -1207,6 +1295,21 @@ std::string Parser::parseOperands(Lexer& lexer, std::vector<std::string>& operan
     return fullOperandString;
 }
 
+/**
+ * @brief Searches instruction table for a matching variant
+ * 
+ * Tries to find an instruction that matches the mnemonic and operand patterns.
+ * Implements fallback logic:
+ * - First tries exact pattern match
+ * - If NN (16-bit) in pattern, tries N (8-bit) variant
+ * - If N (8-bit) in pattern, tries NN (16-bit) variant
+ * 
+ * This allows flexible matching where symbol values determine the instruction size.
+ * 
+ * @param mnemonic Instruction mnemonic (e.g., "LD", "ADD")
+ * @param operands Vector of operand strings (e.g., {"A", "(HL)"})
+ * @return Pointer to matching InstructionInfo, or nullptr if not found
+ */
 const InstructionInfo* Parser::findInstructionVariant(const std::string& mnemonic,
                                                        const std::vector<std::string>& operands) {
     // Build pattern from operands
@@ -1261,6 +1364,27 @@ const InstructionInfo* Parser::findInstructionVariant(const std::string& mnemoni
     return nullptr;
 }
 
+/**
+ * @brief Converts an operand string to a pattern for instruction matching
+ * 
+ * Analyzes operands and converts them to abstract patterns used by the instruction
+ * table. Examples:
+ * - "A" → "A" (register)
+ * - "(HL)" → "(HL)" (indirect register)
+ * - "(IX+5)" → "(IX+D)" (indexed addressing)
+ * - "100" → "N" (8-bit immediate) or "NN" (16-bit immediate)
+ * - "(port)" → "(N)" for IN/OUT, "(NN)" for other instructions
+ * - "7" → "7" for BIT/SET/RES, "N" for other instructions
+ * 
+ * Special handling:
+ * - Resolves symbols to determine value range
+ * - Distinguishes 8-bit ports from 16-bit addresses based on instruction
+ * - Handles bit numbers (0-7) for BIT/SET/RES instructions
+ * 
+ * @param operand Operand string (e.g., "A", "(HL)", "label", "255")
+ * @param mnemonic Instruction mnemonic for context-sensitive pattern matching
+ * @return Pattern string for instruction table lookup
+ */
 std::string Parser::operandToPattern(const std::string& operand, const std::string& mnemonic) {
     if (operand.empty()) {
         return "";
@@ -1386,11 +1510,21 @@ std::string Parser::operandToPattern(const std::string& operand, const std::stri
     return "NN";
 }
 
+/**
+ * @brief Checks if an operand string is a Z80 register name
+ * 
+ * @param operand Operand string to check (case-insensitive)
+ * @return true if operand is a valid Z80 register (A, B, C, D, E, H, L, AF, BC, DE, HL, SP, IX, IY, I, R)
+ */
 bool Parser::isRegisterOperand(const std::string& operand) {
     std::string upper = operand;
     for (char& c : upper) c = std::toupper(c);
     return instructions_.isRegister(upper);
 }
+
+//=============================================================================
+// Public Accessors
+//=============================================================================
 
 const std::vector<AssemblyError>& Parser::getErrors() const {
     return errors_;
@@ -1400,6 +1534,24 @@ const SymbolTable& Parser::getSymbolTable() const {
     return symbolTable_;
 }
 
+//=============================================================================
+// REL File Generation
+//=============================================================================
+
+/**
+ * @brief Writes assembled code to Intel/Microsoft REL format
+ * 
+ * Generates a relocatable object file containing:
+ * - Module header with name and type
+ * - Program and data area sizes
+ * - PUBLIC symbols (exported entry points)
+ * - EXTRN symbols (imported references)
+ * - Machine code with relocation information
+ * 
+ * @param filename Output .REL filename
+ * @param moduleName Module name (derived from filename if empty)
+ * @return true on success, false on error
+ */
 bool Parser::writeREL(const std::string& filename, const std::string& moduleName) {
     RELWriter writer;
     
@@ -1556,7 +1708,22 @@ bool Parser::writeREL(const std::string& filename, const std::string& moduleName
     return writer.writeToFile(filename);
 }
 
-// Helper function to add a line with source location tracking
+//=============================================================================
+// Macro Expansion and Source Processing
+//=============================================================================
+
+/**
+ * @brief Adds a line to expanded output with source location tracking
+ * 
+ * Helper function to maintain parallel arrays of expanded lines and their
+ * original source locations for accurate error reporting.
+ * 
+ * @param expandedLines Output vector of expanded source lines
+ * @param sourceLocations Output vector of source locations (parallel to expandedLines)
+ * @param line The expanded line to add
+ * @param filename Original filename where the line came from
+ * @param lineNumber Original line number in the source file
+ */
 void Parser::addExpandedLine(std::vector<std::string>& expandedLines,
                              std::vector<SourceLocation>& sourceLocations,
                              const std::string& line,
@@ -1569,6 +1736,24 @@ void Parser::addExpandedLine(std::vector<std::string>& expandedLines,
     sourceLocations.push_back(loc);
 }
 
+/**
+ * @brief Expands macros and INCLUDEs in source code (multi-pass)
+ * 
+ * Performs up to 10 iterations of macro expansion to handle nested macro calls.
+ * Each iteration may expand macros that were generated by the previous iteration.
+ * Preserves source location tracking through all expansion passes.
+ * 
+ * Process:
+ * 1. First pass: Expand all INCLUDEs and macros, creating initial source locations
+ * 2. Subsequent passes: Re-expand macros from previous expansion, preserving locations
+ * 3. Stops when no more expansions occur or max iterations reached
+ * 
+ * @param sourceLines Input source code lines
+ * @param expandedLines Output fully expanded source lines
+ * @param sourceLocations Output source locations for each expanded line
+ * @param filename Name of main source file
+ * @return true on success, false on error
+ */
 bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
                                     std::vector<std::string>& expandedLines,
                                     std::vector<SourceLocation>& sourceLocations,
@@ -1604,6 +1789,30 @@ bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
     return true;
 }
 
+/**
+ * @brief Implementation of single-pass macro expansion
+ * 
+ * Processes source lines and expands:
+ * - INCLUDE directives: Reads and inserts external files
+ * - MACRO definitions: Stores macro definitions for later use
+ * - Macro invocations: Expands macro calls with parameter substitution
+ * - REPT blocks: Repeats code sections N times
+ * - IRP blocks: Iterates over parameter lists
+ * - IRPC blocks: Iterates over characters in a string
+ * 
+ * Maintains source location tracking by:
+ * - Using inputLocations when available (for subsequent passes)
+ * - Creating new locations for first pass
+ * - Preserving original file:line for all expanded content
+ * 
+ * @param sourceLines Input source lines to process
+ * @param expandedLines Output expanded lines
+ * @param sourceLocations Output source locations (parallel to expandedLines)
+ * @param inputLocations Input source locations from previous pass (empty for first pass)
+ * @param filename Main source filename for new locations
+ * @param expandedAnything Output flag: set to true if any expansion occurred
+ * @return true on success, false on error
+ */
 bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLines,
                                         std::vector<std::string>& expandedLines,
                                         std::vector<SourceLocation>& sourceLocations,
