@@ -62,7 +62,14 @@ bool Parser::assemble(const std::string& filename) {
         return false;
     }
     
-    return errors_.empty();
+    // Check if there are any actual errors (not just warnings)
+    for (const auto& err : errors_) {
+        if (err.level == ErrorLevel::Error) {
+            return false;
+        }
+    }
+    
+    return true;
 }
 
 bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::string& filename) {
@@ -72,16 +79,25 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
     macroBody_.clear();
     conditionalProcessor_.clear();
     conditionalProcessor_.setPass(1);
+    sourceLocations_.clear();
     
     // Pass 1: Build symbol table and calculate addresses
     
     // Process source lines (including macro expansion)
     std::vector<std::string> expandedLines;
-    expandSourceWithMacros(sourceLines, expandedLines, filename);
+    expandSourceWithMacros(sourceLines, expandedLines, sourceLocations_, filename);
     
     for (size_t i = 0; i < expandedLines.size(); ++i) {
         const std::string& line = expandedLines[i];
         int lineNum = i + 1;
+        
+        // Get original source location for error reporting
+        std::string errorFilename = filename;
+        int errorLineNum = lineNum;
+        if (i < sourceLocations_.size()) {
+            errorFilename = sourceLocations_[i].filename;
+            errorLineNum = sourceLocations_[i].lineNumber;
+        }
         
         Lexer lexer(line, filename);
         Token token = lexer.nextToken();
@@ -197,10 +213,10 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
             else if (upperToken == "ELSE") {
                 if (!conditionalProcessor_.processELSE(lineNum)) {
                     AssemblyError err;
-                    err.level = ErrorLevel::Error;
-                    err.message = "ELSE without IF";
-                    err.filename = filename;
-                    err.line = lineNum;
+                    err.level = ErrorLevel::Warning;
+                    err.message = "ELSE without IF (ignored)";
+                    err.filename = errorFilename;
+                    err.line = errorLineNum;
                     err.column = 0;
                     errors_.push_back(err);
                 }
@@ -209,10 +225,10 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
             else if (upperToken == "ENDIF") {
                 if (!conditionalProcessor_.processENDIF(lineNum)) {
                     AssemblyError err;
-                    err.level = ErrorLevel::Error;
-                    err.message = "ENDIF without IF";
-                    err.filename = filename;
-                    err.line = lineNum;
+                    err.level = ErrorLevel::Warning;
+                    err.message = "ENDIF without IF (ignored)";
+                    err.filename = errorFilename;
+                    err.line = errorLineNum;
                     err.column = 0;
                     errors_.push_back(err);
                 }
@@ -248,6 +264,147 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
 
                 lexer.nextToken();  // Skip colon
                 token = lexer.nextToken();
+                
+                // After label, check if the next token is a conditional directive
+                if (token.type == TokenType::Identifier) {
+                    std::string upperToken = token.text;
+                    for (char& c : upperToken) c = std::toupper(c);
+                    
+                    bool isConditionalDirective = false;
+                    if (upperToken == "IF" || upperToken == "IFT") {
+                        std::string expression;
+                        while (true) {
+                            token = lexer.nextToken();
+                            if (token.type == TokenType::EndOfLine || token.type == TokenType::EndOfFile) break;
+                            expression += token.text + " ";
+                        }
+                        conditionalProcessor_.processIF(expression, symbolTable_, lineNum);
+                        isConditionalDirective = true;
+                    }
+                    else if (upperToken == "IFE" || upperToken == "IFF") {
+                        std::string expression;
+                        while (true) {
+                            token = lexer.nextToken();
+                            if (token.type == TokenType::EndOfLine || token.type == TokenType::EndOfFile) break;
+                            expression += token.text + " ";
+                        }
+                        conditionalProcessor_.processIFE(expression, symbolTable_, lineNum);
+                        isConditionalDirective = true;
+                    }
+                    else if (upperToken == "IF1") {
+                        conditionalProcessor_.processIF1(lineNum);
+                        isConditionalDirective = true;
+                    }
+                    else if (upperToken == "IF2") {
+                        conditionalProcessor_.processIF2(lineNum);
+                        isConditionalDirective = true;
+                    }
+                    else if (upperToken == "IFDEF") {
+                        token = lexer.nextToken();
+                        if (token.type == TokenType::Identifier) {
+                            conditionalProcessor_.processIFDEF(token.text, symbolTable_, lineNum);
+                        }
+                        isConditionalDirective = true;
+                    }
+                    else if (upperToken == "IFNDEF") {
+                        token = lexer.nextToken();
+                        if (token.type == TokenType::Identifier) {
+                            conditionalProcessor_.processIFNDEF(token.text, symbolTable_, lineNum);
+                        }
+                        isConditionalDirective = true;
+                    }
+                    else if (upperToken == "IFB") {
+                        std::string argument;
+                        while (true) {
+                            token = lexer.nextToken();
+                            if (token.type == TokenType::EndOfLine || token.type == TokenType::EndOfFile) break;
+                            argument += token.text;
+                        }
+                        conditionalProcessor_.processIFB(argument, lineNum);
+                        isConditionalDirective = true;
+                    }
+                    else if (upperToken == "IFNB") {
+                        std::string argument;
+                        while (true) {
+                            token = lexer.nextToken();
+                            if (token.type == TokenType::EndOfLine || token.type == TokenType::EndOfFile) break;
+                            argument += token.text;
+                        }
+                        conditionalProcessor_.processIFNB(argument, lineNum);
+                        isConditionalDirective = true;
+                    }
+                    else if (upperToken == "IFIDN") {
+                        std::string arg1, arg2;
+                        token = lexer.nextToken();
+                        if (token.type == TokenType::Identifier || token.type == TokenType::String) {
+                            arg1 = token.text;
+                            token = lexer.nextToken();
+                            if (token.type == TokenType::Comma) {
+                                token = lexer.nextToken();
+                                if (token.type == TokenType::Identifier || token.type == TokenType::String) {
+                                    arg2 = token.text;
+                                }
+                            }
+                        }
+                        conditionalProcessor_.processIFIDN(arg1, arg2, lineNum);
+                        isConditionalDirective = true;
+                    }
+                    else if (upperToken == "IFDIF") {
+                        std::string arg1, arg2;
+                        token = lexer.nextToken();
+                        if (token.type == TokenType::Identifier || token.type == TokenType::String) {
+                            arg1 = token.text;
+                            token = lexer.nextToken();
+                            if (token.type == TokenType::Comma) {
+                                token = lexer.nextToken();
+                                if (token.type == TokenType::Identifier || token.type == TokenType::String) {
+                                    arg2 = token.text;
+                                }
+                            }
+                        }
+                        conditionalProcessor_.processIFDIF(arg1, arg2, lineNum);
+                        isConditionalDirective = true;
+                    }
+                    else if (upperToken == "ELSE") {
+                        if (!conditionalProcessor_.processELSE(lineNum)) {
+                            AssemblyError err;
+                            err.level = ErrorLevel::Warning;
+                            err.message = "ELSE without IF (ignored)";
+                            err.filename = filename;
+                            err.line = lineNum;
+                            err.column = 0;
+                            errors_.push_back(err);
+                        }
+                        isConditionalDirective = true;
+                    }
+                    else if (upperToken == "ENDIF") {
+                        if (!conditionalProcessor_.processENDIF(lineNum)) {
+                            AssemblyError err;
+                            err.level = ErrorLevel::Warning;
+                            err.message = "ENDIF without IF (ignored)";
+                            err.filename = filename;
+                            err.line = lineNum;
+                            err.column = 0;
+                            errors_.push_back(err);
+                        }
+                        isConditionalDirective = true;
+                    }
+                    
+                    if (isConditionalDirective) {
+                        // Add label to symbol table but don't process rest of line
+                        if (!labelName.empty()) {
+                            Symbol sym;
+                            sym.type = SymbolType::Label;
+                            sym.value = locationCounter_ + (inPhase_ ? phaseOffset_ : 0);
+                            sym.segment = currentSegment_;
+                            sym.defined = true;
+                            sym.isRelocatable = (currentSegment_ != SegmentType::ASEG);
+                            sym.definedLine = lineNum;
+                            symbolTable_.addSymbol(labelName, sym);
+                        }
+                        continue;
+                    }
+                }
             }
             else if (next.type == TokenType::Identifier) {
                 // Could be "LABEL MNEM" or "MNEM OPERAND"
@@ -587,7 +744,7 @@ bool Parser::pass2(const std::vector<std::string>& sourceLines, const std::strin
     // Re-expand source with macros (we need to do this again for pass2)
     std::vector<std::string> expandedLines;
     macroProcessor_.clear(); // Reset macro state
-    expandSourceWithMacros(sourceLines, expandedLines, filename);
+    expandSourceWithMacros(sourceLines, expandedLines, sourceLocations_, filename);
     
     for (auto& line : lines_) {
         // Skip lines without mnemonics (just labels or comments)
@@ -1236,8 +1393,22 @@ bool Parser::writeREL(const std::string& filename, const std::string& moduleName
     return writer.writeToFile(filename);
 }
 
+// Helper function to add a line with source location tracking
+void Parser::addExpandedLine(std::vector<std::string>& expandedLines,
+                             std::vector<SourceLocation>& sourceLocations,
+                             const std::string& line,
+                             const std::string& filename,
+                             int lineNumber) {
+    expandedLines.push_back(line);
+    SourceLocation loc;
+    loc.filename = filename;
+    loc.lineNumber = lineNumber;
+    sourceLocations.push_back(loc);
+}
+
 bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
                                     std::vector<std::string>& expandedLines,
+                                    std::vector<SourceLocation>& sourceLocations,
                                     const std::string& filename) {
     bool inMacroDef = false;
     bool inReptDef = false;
@@ -1259,7 +1430,7 @@ bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
         while (macroProcessor_.isExpanding()) {
             std::string expandedLine;
             if (macroProcessor_.getNextLine(expandedLine)) {
-                expandedLines.push_back(expandedLine);
+                addExpandedLine(expandedLines, sourceLocations, expandedLine, filename, lineIdx + 1);
             } else {
                 break; // Expansion complete
             }
@@ -1271,7 +1442,7 @@ bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
         // Skip empty lines and comments
         if (token.type == TokenType::EndOfLine || token.type == TokenType::EndOfFile) {
             if (!inMacroDef && !inReptDef && !inIRPDef && !inIRPCDef) {
-                expandedLines.push_back(line);
+                addExpandedLine(expandedLines, sourceLocations, line, filename, lineIdx + 1);
             }
             continue;
         }
@@ -1326,6 +1497,14 @@ bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
                 if (token.type == TokenType::Identifier || token.type == TokenType::String) {
                     std::string includeFile = token.text;
                     
+                    // M80 compatibility: Add .mac extension if no extension is present
+                    if (includeFile.find('.') == std::string::npos) {
+                        // Convert to lowercase for M80 compatibility
+                        std::string lowerFile = includeFile;
+                        for (char& c : lowerFile) c = std::tolower(c);
+                        includeFile = lowerFile + ".mac";
+                    }
+                    
                     // Build include file path (relative to current file's directory)
                     std::string includePath;
                     size_t lastSlash = filename.find_last_of("/\\");
@@ -1357,11 +1536,19 @@ bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
                     
                     // Recursively expand included file (for nested includes and macros)
                     std::vector<std::string> expandedInclude;
-                    expandSourceWithMacros(includeLines, expandedInclude, includePath);
+                    std::vector<SourceLocation> includeLocations;
+                    expandSourceWithMacros(includeLines, expandedInclude, includeLocations, includePath);
                     
-                    // Add expanded lines to output
-                    for (const auto& expandedLine : expandedInclude) {
-                        expandedLines.push_back(expandedLine);
+                    // Add expanded lines to output WITH their source locations
+                    for (size_t i = 0; i < expandedInclude.size(); ++i) {
+                        expandedLines.push_back(expandedInclude[i]);
+                        if (i < includeLocations.size()) {
+                            sourceLocations.push_back(includeLocations[i]);
+                        } else {
+                            // Fallback if locations are missing
+                            addExpandedLine(expandedLines, sourceLocations, "", includePath, i + 1);
+                            expandedLines.pop_back(); // Remove the empty line we just added
+                        }
                     }
                     continue;
                 }

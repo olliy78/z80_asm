@@ -63,11 +63,34 @@ int main(int argc, char* argv[]) {
     z80::Parser parser;
     bool success = parser.assemble(inputFile);
     
-    if (!success || parser.hasErrors()) {
+    // Show warnings (if any)
+    bool hasWarnings = false;
+    bool hasErrors = false;
+    for (const auto& error : parser.getErrors()) {
+        if (error.level == z80::ErrorLevel::Warning) {
+            hasWarnings = true;
+        } else if (error.level == z80::ErrorLevel::Error) {
+            hasErrors = true;
+        }
+    }
+    
+    if (hasWarnings) {
+        std::cerr << "\nWarnings:\n";
+        for (const auto& error : parser.getErrors()) {
+            if (error.level == z80::ErrorLevel::Warning) {
+                std::cerr << error.filename << ":" << error.line << ":" << error.column 
+                          << ": " << error.message << "\n";
+            }
+        }
+    }
+    
+    if (!success || hasErrors) {
         std::cerr << "\nAssembly failed with errors:\n";
         for (const auto& error : parser.getErrors()) {
-            std::cerr << error.filename << ":" << error.line << ":" << error.column 
-                      << ": " << error.message << "\n";
+            if (error.level == z80::ErrorLevel::Error) {
+                std::cerr << error.filename << ":" << error.line << ":" << error.column 
+                          << ": " << error.message << "\n";
+            }
         }
         return 1;
     }

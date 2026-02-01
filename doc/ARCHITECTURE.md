@@ -37,6 +37,7 @@ Die Architektur wurde refaktorisiert um eine klare Trennung der Verantwortlichke
 - **PUBLIC/EXTRN Directive Handling** ✨
 - **PHASE/DEPHASE Support** ✨
 - **NAME/TITLE Directive Support** ✨
+- **Source Location Tracking** für korrekte Fehlermeldungen in INCLUDEs ✨
 
 **Features**:
 - Zwei-Pass Assembly (Symbol Table → Code Generation)
@@ -44,6 +45,10 @@ Die Architektur wurde refaktorisiert um eine klare Trennung der Verantwortlichke
 - Segment Management (CSEG/DSEG/ASEG)
 - Phase Offset für relocatable Code
 - Multi-Module Symbol-Tracking
+- **Source Location Tracking**: Fehler/Warnungen zeigen korrekte Datei:Zeile auch in included files
+  - `expandSourceWithMacros()` nimmt `sourceLocations` als Parameter
+  - `addExpandedLine()` Helper für konsistentes Tracking
+  - Rekursive INCLUDEs propagieren source locations korrekt
 
 **Output**: `vector<ParsedLine>` + `SymbolTable`
 
@@ -252,6 +257,13 @@ Die alte `Parser::writeREL()` Methode ist als `[[deprecated]]` markiert und gibt
 6. ✅ **PHASE/DEPHASE Relocatable Code Support**
 7. ✅ **Interrupt Instructions (IM, RETI, RETN)**
 8. ✅ **NAME/TITLE Directive Support**
+9. ✅ **Source Location Tracking** für korrekte Fehler/Warnungen in INCLUDEs
+10. ✅ **INCLUDE-Verbesserungen**:
+    - Auto-.mac extension (M80-kompatibel)
+    - Recursive includes mit korrektem source tracking
+    - Cross-file conditional blocks (IF in einem File, ENDIF in included file)
+11. ✅ **Label: IF Syntax** - Conditionals nach Labels werden erkannt
+12. ✅ **ENDIF/ELSE ohne IF** - Warnungen statt Errors (M80-kompatibel)
 
 ### 🔨 In Arbeit (Phase 2 Fortsetzung)
 1. [ ] REL Writer: PUBLIC/EXTRN Symbol Emission

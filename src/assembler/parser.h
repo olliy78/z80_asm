@@ -27,6 +27,15 @@
 namespace z80 {
 
 /**
+ * @struct SourceLocation
+ * @brief Tracks the original source file and line number for expanded lines
+ */
+struct SourceLocation {
+    std::string filename;   ///< Original source file name
+    int lineNumber;         ///< Line number in original file
+};
+
+/**
  * @struct ParsedLine
  * @brief Represents a parsed assembly line
  */
@@ -36,7 +45,7 @@ struct ParsedLine {
     std::vector<std::string> operands;  ///< Operands (expressions)
     std::string operandString;          ///< Full operand string for instruction lookup
     std::string comment;                ///< Comment text
-    int lineNumber;                     ///< Source line number
+    int lineNumber;                     ///< Source line number (in expanded list)
     Address address;                    ///< Address assigned in pass 1
     std::vector<Byte> code;             ///< Generated machine code (pass 2)
     SegmentType segment;                ///< Current segment type
@@ -85,10 +94,17 @@ public:
     const std::vector<AssemblyError>& getErrors() const;
     
     /**
-     * @brief Check if assembly had errors
-     * @return true if errors occurred
+     * @brief Check if assembly had errors (not warnings)
+     * @return true if errors (not warnings) occurred
      */
-    bool hasErrors() const { return !errors_.empty(); }
+    bool hasErrors() const { 
+        for (const auto& err : errors_) {
+            if (err.level == ErrorLevel::Error) {
+                return true;
+            }
+        }
+        return false;
+    }
     
     /**
      * @brief Write assembled output to .REL file
@@ -182,14 +198,25 @@ private:
      */
     bool expandSourceWithMacros(const std::vector<std::string>& sourceLines,
                                 std::vector<std::string>& expandedLines,
+                                std::vector<SourceLocation>& sourceLocations,
                                 const std::string& filename);
     
+    /**
+     * @brief Helper to add expanded line with source location tracking
+     */
+    void addExpandedLine(std::vector<std::string>& expandedLines, 
+                        std::vector<SourceLocation>& sourceLocations,
+                        const std::string& line,
+                        const std::string& filename,
+                        int lineNum);
+
     SymbolTable symbolTable_;           ///< Symbol table
     Z80Instructions instructions_;      ///< Z80 instruction set
     MacroProcessor macroProcessor_;     ///< Macro processor
     ConditionalProcessor conditionalProcessor_; ///< Conditional assembly processor
     std::vector<ParsedLine> lines_;     ///< Parsed lines
     std::vector<AssemblyError> errors_; ///< Assembly errors
+    std::vector<SourceLocation> sourceLocations_; ///< Maps expanded line number to original source location
     
     Address locationCounter_;           ///< Current address (location counter)
     SegmentType currentSegment_;        ///< Current segment (CSEG default)

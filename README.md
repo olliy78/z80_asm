@@ -124,7 +124,16 @@ Entwicklung eines Assemblers, der exakt das gleiche binäre Ausgabeformat (.REL)
   - ELSE/ENDIF - Complete flow control
   - Nesting up to 255 levels
   - ~500 lines of conditional infrastructure
+  - **Label: IF syntax supported** (conditionals after labels)
   - **All test cases passing!**
+- [x] **INCLUDE Directive** ✨
+  - Automatic .mac extension addition (M80-compatible)
+  - Recursive includes supported
+  - Relative path resolution from source file directory
+  - Works with both explicit and implicit extensions
+  - Cross-file conditional blocks supported (IF in one file, ENDIF in included file)
+  - Unmatched ENDIF/ELSE generate warnings instead of errors (M80-compatible)
+  - **Source Location Tracking** - Error/warning messages show correct file:line even in deeply nested includes
 
 ### In Arbeit (Phase 3)
 - [ ] Chain Address Tracking for relocatable references
@@ -242,6 +251,13 @@ Siehe [PROJEKT_PLANUNG.md](doc/PROJEKT_PLANUNG.md) für detaillierte Information
 7. **Phase 6: Linker** - LINKMT-kompatibel
 
 ## Features
+
+### Error Reporting
+- [x] **Source Location Tracking** ✨
+  - Accurate file:line reporting for errors/warnings
+  - Works correctly with nested INCLUDEs
+  - Warnings vs Errors separation (assembly continues with warnings)
+  - M80-compatible warning behavior (unmatched ENDIF/ELSE)
 
 ### M80-Syntax
 
