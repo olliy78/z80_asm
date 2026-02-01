@@ -1346,6 +1346,21 @@ std::string Parser::operandToPattern(const std::string& operand, const std::stri
     }
     
     // Unknown - likely a symbol or forward reference
+    // For BIT/SET/RES instructions, try to evaluate symbol to check if it's a bit number
+    if (upperMnem == "BIT" || upperMnem == "SET" || upperMnem == "RES") {
+        // Try to resolve symbol
+        if (symbolTable_.hasSymbol(operand)) {
+            const Symbol* sym = symbolTable_.getSymbol(operand);
+            if (sym && sym->defined) {
+                value = sym->value;
+                if (value >= 0 && value <= 7) {
+                    // It's a bit number - return it as string
+                    return std::to_string(value);
+                }
+            }
+        }
+    }
+    
     // We need to try both patterns (N and NN) depending on context
     // For now, prefer NN (addresses are more common)
     return "NN";
