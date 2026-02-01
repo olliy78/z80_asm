@@ -7,22 +7,31 @@
  */
 
 #include "symbol_table.h"
+#include <algorithm>
+#include <cctype>
 
 namespace z80 {
 
 SymbolTable::SymbolTable() {
 }
 
+std::string SymbolTable::toUpper(const std::string& name) const {
+    std::string upper = name;
+    std::transform(upper.begin(), upper.end(), upper.begin(),
+                   [](unsigned char c) { return std::toupper(c); });
+    return upper;
+}
+
 void SymbolTable::addSymbol(const std::string& name, const Symbol& symbol) {
-    symbols_[name] = symbol;
+    symbols_[toUpper(name)] = symbol;
 }
 
 bool SymbolTable::hasSymbol(const std::string& name) const {
-    return symbols_.find(name) != symbols_.end();
+    return symbols_.find(toUpper(name)) != symbols_.end();
 }
 
 Symbol* SymbolTable::getSymbol(const std::string& name) {
-    auto it = symbols_.find(name);
+    auto it = symbols_.find(toUpper(name));
     if (it != symbols_.end()) {
         return &it->second;
     }
@@ -30,7 +39,7 @@ Symbol* SymbolTable::getSymbol(const std::string& name) {
 }
 
 const Symbol* SymbolTable::getSymbol(const std::string& name) const {
-    auto it = symbols_.find(name);
+    auto it = symbols_.find(toUpper(name));
     if (it != symbols_.end()) {
         return &it->second;
     }

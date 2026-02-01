@@ -81,7 +81,14 @@ public:
     const std::map<std::string, Symbol>& getAllSymbols() const { return symbols_; }
     
 private:
-    std::map<std::string, Symbol> symbols_;  ///< Map of symbol names to data
+    /**
+     * @brief Convert symbol name to uppercase (M80 is case-insensitive)
+     * @param name Symbol name
+     * @return Uppercase version of name
+     */
+    std::string toUpper(const std::string& name) const;
+    
+    std::map<std::string, Symbol> symbols_;  ///< Map of symbol names to data (keys are uppercase)
 };
 
 } // namespace z80
