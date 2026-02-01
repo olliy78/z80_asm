@@ -208,6 +208,7 @@ private:
     bool expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLines,
                                     std::vector<std::string>& expandedLines,
                                     std::vector<SourceLocation>& sourceLocations,
+                                    const std::vector<SourceLocation>& inputLocations,
                                     const std::string& filename,
                                     bool& expandedAnything);
     

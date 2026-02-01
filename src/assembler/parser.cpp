@@ -1578,17 +1578,21 @@ bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
     std::vector<std::string> tempExpanded;
     std::vector<SourceLocation> tempLocations;
     
+    // First expansion: no input locations, create new ones
+    std::vector<SourceLocation> emptyLocations;
     bool expandedAnything = false;
-    expandSourceWithMacrosImpl(sourceLines, tempExpanded, tempLocations, filename, expandedAnything);
+    expandSourceWithMacrosImpl(sourceLines, tempExpanded, tempLocations, emptyLocations, filename, expandedAnything);
     
     // Pass 2+: Keep expanding until no more macros are found (up to max iterations)
+    // Use existing locations from previous iteration
     const int MAX_ITERATIONS = 10;
     for (int iteration = 0; iteration < MAX_ITERATIONS && expandedAnything; ++iteration) {
         std::vector<std::string> nextExpanded;
         std::vector<SourceLocation> nextLocations;
         expandedAnything = false;
         
-        expandSourceWithMacrosImpl(tempExpanded, nextExpanded, nextLocations, filename, expandedAnything);
+        // Pass existing locations so they are preserved
+        expandSourceWithMacrosImpl(tempExpanded, nextExpanded, nextLocations, tempLocations, filename, expandedAnything);
         
         tempExpanded = std::move(nextExpanded);
         tempLocations = std::move(nextLocations);
@@ -1603,6 +1607,7 @@ bool Parser::expandSourceWithMacros(const std::vector<std::string>& sourceLines,
 bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLines,
                                         std::vector<std::string>& expandedLines,
                                         std::vector<SourceLocation>& sourceLocations,
+                                        const std::vector<SourceLocation>& inputLocations,
                                         const std::string& filename,
                                         bool& expandedAnything) {
     bool inMacroDef = false;
@@ -1620,6 +1625,14 @@ bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLi
     
     for (size_t lineIdx = 0; lineIdx < sourceLines.size(); ++lineIdx) {
         const std::string& line = sourceLines[lineIdx];
+        
+        // Get source location for this line from input if available
+        std::string currentFilename = filename;
+        int currentLineNum = lineIdx + 1;
+        if (lineIdx < inputLocations.size()) {
+            currentFilename = inputLocations[lineIdx].filename;
+            currentLineNum = inputLocations[lineIdx].lineNumber;
+        }
         
         // If we're expanding macros, get lines from macro processor
         while (macroProcessor_.isExpanding()) {
@@ -1796,8 +1809,8 @@ bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLi
                     if (!labelAttached && !labelName.empty()) {
                         expandedLines.push_back(labelName + ":");
                         SourceLocation loc;
-                        loc.filename = filename;
-                        loc.lineNumber = lineIdx + 1;
+                        loc.filename = currentFilename;
+                        loc.lineNumber = currentLineNum;
                         sourceLocations.push_back(loc);
                     }
                     
@@ -2031,8 +2044,8 @@ bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLi
                     if (!labelName.empty()) {
                         expandedLines.push_back(labelName + ":");
                         SourceLocation loc;
-                        loc.filename = filename;
-                        loc.lineNumber = lineIdx + 1;
+                        loc.filename = currentFilename;
+                        loc.lineNumber = currentLineNum;
                         sourceLocations.push_back(loc);
                     }
                     
@@ -2047,8 +2060,8 @@ bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLi
                             expandedLines.push_back(expandedLine);
                             // Track source location for macro-expanded lines
                             SourceLocation loc;
-                            loc.filename = filename;
-                            loc.lineNumber = lineIdx + 1;  // Point back to macro invocation line
+                            loc.filename = currentFilename;
+                            loc.lineNumber = currentLineNum;  // Point back to macro invocation line
                             sourceLocations.push_back(loc);
                         } else {
                             break;
@@ -2066,8 +2079,8 @@ bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLi
             // Normal line, pass through with source location
             expandedLines.push_back(line);
             SourceLocation loc;
-            loc.filename = filename;
-            loc.lineNumber = lineIdx + 1;
+            loc.filename = currentFilename;
+            loc.lineNumber = currentLineNum;
             sourceLocations.push_back(loc);
         }
     }
