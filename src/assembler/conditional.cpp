@@ -11,6 +11,7 @@
 #include "expression.h"
 #include <algorithm>
 #include <cctype>
+#include <iostream>
 
 namespace z80 {
 
