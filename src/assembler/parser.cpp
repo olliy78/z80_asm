@@ -1997,15 +1997,16 @@ bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLi
                                         upperMnemonic == ".XLIST" || upperMnemonic == ".TFCOND" ||
                                         upperMnemonic == ".SFCOND" || upperMnemonic == ".LFCOND");
                 
-                std::string checkName = labelName.empty() ? token.text : labelName;
+                // Check if current token (mnemonic/directive position) is a macro
+                // NOT the label - labels can't be macros
+                std::string checkName = token.text;
                 if (!isKnownDirective && macroProcessor_.isMacroDefined(checkName)) {
                     std::string macroName = checkName;
                     std::vector<std::string> arguments;
                     
-                    // Parse arguments
-                    if (labelName.empty()) {
-                        token = lexer.nextToken();
-                    }
+                    // Parse arguments - always advance to next token after macro name
+                    token = lexer.nextToken();
+                    
                     while (token.type == TokenType::Identifier || token.type == TokenType::Number || 
                            token.type == TokenType::String) {
                         std::string arg;
