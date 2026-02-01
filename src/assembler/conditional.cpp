@@ -146,7 +146,7 @@ bool ConditionalProcessor::processIFDIF(const std::string& arg1, const std::stri
     return true;
 }
 
-bool ConditionalProcessor::processELSE(int lineNumber) {
+bool ConditionalProcessor::processELSE(int /* lineNumber */) {
     if (stack_.empty()) {
         return false; // ELSE without IF
     }
@@ -181,7 +181,7 @@ bool ConditionalProcessor::processELSE(int lineNumber) {
     return true;
 }
 
-bool ConditionalProcessor::processENDIF(int lineNumber) {
+bool ConditionalProcessor::processENDIF(int /* lineNumber */) {
     if (stack_.empty()) {
         return false; // ENDIF without IF
     }

@@ -377,7 +377,7 @@ std::string MacroProcessor::substituteParameters(const std::string& line, const 
     return result;
 }
 
-std::string MacroProcessor::generateLocalLabel(const std::string& label, int uniqueId) {
+std::string MacroProcessor::generateLocalLabel(const std::string& /* label */, int uniqueId) {
     // Generate format like "??0001", "??0002", etc.
     std::ostringstream oss;
     oss << "??" << std::setfill('0') << std::setw(4) << uniqueId;

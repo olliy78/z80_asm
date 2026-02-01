@@ -367,7 +367,6 @@ ExpressionResult ExpressionEvaluator::parsePrimaryExpression(const std::string& 
     
     // Character literal 'X'
     if (expr[pos] == '\'') {
-        size_t startPos = pos;
         pos++; // Skip opening quote
         
         if (pos >= expr.length()) {

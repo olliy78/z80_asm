@@ -330,7 +330,7 @@ void RELWriter::writeSymbolName(const std::string& name) {
     std::string truncated = truncateSymbolName(name);
     
     // Pad to 6 characters with spaces
-    for (int i = 0; i < 6; i++) {
+    for (size_t i = 0; i < 6; i++) {
         char c = (i < truncated.length()) ? truncated[i] : ' ';
         writer_.writeByte(static_cast<Byte>(c));
     }

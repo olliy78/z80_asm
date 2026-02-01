@@ -383,14 +383,12 @@ bool Parser::pass1(const std::vector<std::string>& sourceLines, const std::strin
         
         // Now do normal label parsing
         std::string labelName;
-        bool hasColon = false;
         if (token.type == TokenType::Identifier) {
             Token next = lexer.peekToken();
             if (next.type == TokenType::Colon) {
                 // This is definitely a label (has colon)
                 labelName = token.text;
                 parsedLine.label = labelName;
-                hasColon = true;
 
                 lexer.nextToken();  // Skip colon
                 token = lexer.nextToken();
@@ -988,7 +986,7 @@ bool Parser::pass2(const std::vector<std::string>& sourceLines, const std::strin
  * @param filename Source filename (unused but kept for consistency)
  * @return true if successful, false on evaluation errors
  */
-bool Parser::generateDB(ParsedLine& line, const std::string& filename) {
+bool Parser::generateDB(ParsedLine& line, const std::string& /* filename */) {
     // DB generates bytes from comma-separated expressions
     // Operands are already parsed in line.operands
     
@@ -1035,7 +1033,7 @@ bool Parser::generateDB(ParsedLine& line, const std::string& filename) {
  * @param filename Source filename (unused but kept for consistency)
  * @return true if successful, false on evaluation errors
  */
-bool Parser::generateDW(ParsedLine& line, const std::string& filename) {
+bool Parser::generateDW(ParsedLine& line, const std::string& /* filename */) {
     // DW generates 16-bit words from comma-separated expressions
     // Z80 uses little-endian (LSB first)
     
@@ -1075,7 +1073,7 @@ bool Parser::generateDW(ParsedLine& line, const std::string& filename) {
  * @param filename Source filename (unused but kept for consistency)
  * @return true if instruction found and generated, false if unknown instruction
  */
-bool Parser::generateInstruction(ParsedLine& line, const std::string& filename) {
+bool Parser::generateInstruction(ParsedLine& line, const std::string& /* filename */) {
     // Find instruction variant based on parsed operands
     auto info = findInstructionVariant(line.mnemonic, line.operands);
     if (info) {
