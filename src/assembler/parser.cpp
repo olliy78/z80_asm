@@ -1664,18 +1664,8 @@ bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLi
                                         const std::vector<SourceLocation>& inputLocations,
                                         const std::string& filename,
                                         bool& expandedAnything) {
-    bool inMacroDef = false;
-    bool inReptDef = false;
-    bool inIRPDef = false;
-    bool inIRPCDef = false;
-    
-    MacroDefinition currentMacro;
-    std::vector<std::string> currentBody;
-    std::vector<std::string> localLabels;
-    int repeatCount = 0;
-    std::string iteratorName;
-    std::vector<std::string> iteratorValues;
-    std::string irpcChars;
+    // Note: State variables for macro/rept/irp/irpc definitions removed
+    // MacroProcessor now handles parsing internally
     
     for (size_t lineIdx = 0; lineIdx < sourceLines.size(); ++lineIdx) {
         const std::string& line = sourceLines[lineIdx];
@@ -1703,9 +1693,7 @@ bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLi
         
         // Skip empty lines and comments
         if (token.type == TokenType::EndOfLine || token.type == TokenType::EndOfFile) {
-            if (!inMacroDef && !inReptDef && !inIRPDef && !inIRPCDef) {
-                addExpandedLine(expandedLines, sourceLocations, line, filename, lineIdx + 1);
-            }
+            addExpandedLine(expandedLines, sourceLocations, line, currentFilename, currentLineNum);
             continue;
         }
         
@@ -1874,58 +1862,66 @@ bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLi
             
             // MACRO definition
             if (upperMnemonic == "MACRO" && !labelName.empty()) {
-                inMacroDef = true;
-                currentMacro = MacroDefinition();
-                currentMacro.type = MacroType::UserDefined;
-                currentMacro.name = labelName;
-                currentMacro.definitionLine = lineIdx + 1;
-                currentMacro.definitionFile = filename;
-                currentBody.clear();
-                localLabels.clear();
-                
-                // Parse parameters
-                token = lexer.nextToken();
-                while (token.type == TokenType::Identifier) {
-                    currentMacro.parameters.push_back(token.text);
-                    token = lexer.nextToken();
-                    if (token.type == TokenType::Comma) {
-                        token = lexer.nextToken();
-                    }
+                // Use MacroProcessor to parse the macro definition
+                MacroDefinition macro;
+                size_t endIndex;
+                if (macroProcessor_.parseMacroDefinition(sourceLines, lineIdx, labelName, macro, endIndex)) {
+                    macro.definitionLine = lineIdx + 1;
+                    macro.definitionFile = currentFilename;
+                    macroProcessor_.defineMacro(macro);
+                    // Skip to end of macro definition
+                    lineIdx = endIndex - 1; // -1 because loop will increment
                 }
                 continue;
             }
             
             // REPT definition
             if (upperMnemonic == "REPT") {
-                inReptDef = true;
-                currentBody.clear();
-                localLabels.clear();
-                
                 // Parse repeat count
+                int repeatCount = 0;
                 token = lexer.nextToken();
                 if (token.type == TokenType::Number) {
                     repeatCount = static_cast<int>(token.numValue);
+                }
+                
+                // Use MacroProcessor to parse the REPT block
+                std::vector<std::string> body;
+                std::vector<std::string> localLabels;
+                size_t endIndex;
+                if (macroProcessor_.parseReptBlock(sourceLines, lineIdx, repeatCount, body, localLabels, endIndex)) {
+                    // Begin expansion and emit expanded lines
+                    macroProcessor_.beginRepeat(repeatCount, body, localLabels);
+                    expandedAnything = true;
+                    
+                    // Expand immediately
+                    while (macroProcessor_.isExpanding()) {
+                        std::string expandedLine;
+                        if (macroProcessor_.getNextLine(expandedLine)) {
+                            addExpandedLine(expandedLines, sourceLocations, expandedLine, currentFilename, currentLineNum);
+                        } else {
+                            break;
+                        }
+                    }
+                    
+                    // Skip to end of REPT block
+                    lineIdx = endIndex - 1; // -1 because loop will increment
                 }
                 continue;
             }
             
             // IRP definition
             if (upperMnemonic == "IRP") {
-                inIRPDef = true;
-                currentBody.clear();
-                localLabels.clear();
-                iteratorValues.clear();
-                
                 // Parse iterator name
+                std::string iteratorName;
                 token = lexer.nextToken();
                 if (token.type == TokenType::Identifier) {
                     iteratorName = token.text;
                 }
                 
                 // Parse argument list in <...>
+                std::vector<std::string> iteratorValues;
                 token = lexer.nextToken();
                 if (token.type == TokenType::LessThan || line.find('<') != std::string::npos) {
-                    // Find content between < and >
                     size_t start = line.find('<');
                     size_t end = line.find('>');
                     if (start != std::string::npos && end != std::string::npos && end > start) {
@@ -1935,7 +1931,6 @@ bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLi
                         std::istringstream iss(argList);
                         std::string value;
                         while (std::getline(iss, value, ',')) {
-                            // Trim whitespace
                             size_t first = value.find_first_not_of(" \t");
                             size_t last = value.find_last_not_of(" \t");
                             if (first != std::string::npos) {
@@ -1947,111 +1942,85 @@ bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLi
                         }
                     }
                 }
+                
+                // Use MacroProcessor to parse the IRP block
+                std::vector<std::string> body;
+                std::vector<std::string> localLabels;
+                size_t endIndex;
+                if (macroProcessor_.parseIRPBlock(sourceLines, lineIdx, iteratorName, iteratorValues, body, localLabels, endIndex)) {
+                    // Begin expansion and emit expanded lines
+                    macroProcessor_.beginIRP(iteratorName, iteratorValues, body, localLabels);
+                    expandedAnything = true;
+                    
+                    // Expand immediately
+                    while (macroProcessor_.isExpanding()) {
+                        std::string expandedLine;
+                        if (macroProcessor_.getNextLine(expandedLine)) {
+                            addExpandedLine(expandedLines, sourceLocations, expandedLine, currentFilename, currentLineNum);
+                        } else {
+                            break;
+                        }
+                    }
+                    
+                    // Skip to end of IRP block
+                    lineIdx = endIndex - 1;
+                }
                 continue;
             }
             
             // IRPC definition
             if (upperMnemonic == "IRPC") {
-                inIRPCDef = true;
-                currentBody.clear();
-                localLabels.clear();
-                
                 // Parse iterator name
+                std::string iteratorName;
                 token = lexer.nextToken();
                 if (token.type == TokenType::Identifier) {
                     iteratorName = token.text;
                 }
                 
                 // Parse character string
+                std::string irpcChars;
                 token = lexer.nextToken();
                 if (token.type == TokenType::String || token.type == TokenType::Identifier) {
                     irpcChars = token.text;
                 }
-                continue;
-            }
-            
-            // LOCAL declaration
-            if (upperMnemonic == "LOCAL" && (inMacroDef || inReptDef || inIRPDef || inIRPCDef)) {
-                // Parse local labels
-                token = lexer.nextToken();
-                while (token.type == TokenType::Identifier) {
-                    localLabels.push_back(token.text);
-                    token = lexer.nextToken();
-                    if (token.type == TokenType::Comma) {
-                        token = lexer.nextToken();
+                
+                // Use MacroProcessor to parse the IRPC block
+                std::vector<std::string> body;
+                std::vector<std::string> localLabels;
+                size_t endIndex;
+                if (macroProcessor_.parseIRPCBlock(sourceLines, lineIdx, iteratorName, irpcChars, body, localLabels, endIndex)) {
+                    // Begin expansion and emit expanded lines
+                    macroProcessor_.beginIRPC(iteratorName, irpcChars, body, localLabels);
+                    expandedAnything = true;
+                    
+                    // Expand immediately
+                    while (macroProcessor_.isExpanding()) {
+                        std::string expandedLine;
+                        if (macroProcessor_.getNextLine(expandedLine)) {
+                            addExpandedLine(expandedLines, sourceLocations, expandedLine, currentFilename, currentLineNum);
+                        } else {
+                            break;
+                        }
                     }
+                    
+                    // Skip to end of IRPC block
+                    lineIdx = endIndex - 1;
                 }
                 continue;
             }
             
-            // EXITM
+            // EXITM - early exit from macro expansion
             if (upperMnemonic == "EXITM") {
                 if (macroProcessor_.isExpanding()) {
                     macroProcessor_.exitMacro();
                 }
-                if (inMacroDef || inReptDef || inIRPDef || inIRPCDef) {
-                    currentBody.push_back(line);
-                }
-                continue;
-            }
-            
-            // ENDM - end macro/rept/irp/irpc
-            if (upperMnemonic == "ENDM") {
-                if (inMacroDef) {
-                    currentMacro.body = currentBody;
-                    currentMacro.localLabels = localLabels;
-                    macroProcessor_.defineMacro(currentMacro);
-                    inMacroDef = false;
-                } else if (inReptDef) {
-                    macroProcessor_.beginRepeat(repeatCount, currentBody, localLabels);
-                    expandedAnything = true;  // Mark that we expanded a macro
-                    inReptDef = false;
-                    
-                    // Expand immediately
-                    while (macroProcessor_.isExpanding()) {
-                        std::string expandedLine;
-                        if (macroProcessor_.getNextLine(expandedLine)) {
-                            expandedLines.push_back(expandedLine);
-                        } else {
-                            break;
-                        }
-                    }
-                } else if (inIRPDef) {
-                    macroProcessor_.beginIRP(iteratorName, iteratorValues, currentBody, localLabels);
-                    expandedAnything = true;  // Mark that we expanded a macro
-                    inIRPDef = false;
-                    
-                    // Expand immediately
-                    while (macroProcessor_.isExpanding()) {
-                        std::string expandedLine;
-                        if (macroProcessor_.getNextLine(expandedLine)) {
-                            expandedLines.push_back(expandedLine);
-                        } else {
-                            break;
-                        }
-                    }
-                } else if (inIRPCDef) {
-                    macroProcessor_.beginIRPC(iteratorName, irpcChars, currentBody, localLabels);
-                    expandedAnything = true;  // Mark that we expanded a macro
-                    inIRPCDef = false;
-                    
-                    // Expand immediately
-                    while (macroProcessor_.isExpanding()) {
-                        std::string expandedLine;
-                        if (macroProcessor_.getNextLine(expandedLine)) {
-                            expandedLines.push_back(expandedLine);
-                        } else {
-                            break;
-                        }
-                    }
-                }
+                // Note: EXITM is now handled during expansion, not during definition parsing
                 continue;
             }
             
             // Check if it's a macro invocation
-            if (!inMacroDef && !inReptDef && !inIRPDef && !inIRPCDef) {
-                // First check if it's a known directive or mnemonic
-                bool isKnownDirective = (upperMnemonic == "ORG" || upperMnemonic == "EQU" || 
+            // (First check if it's a known directive or mnemonic)
+            bool isKnownDirective = (upperMnemonic == "ORG" || upperMnemonic == "EQU" || 
                                         upperMnemonic == "DB" || upperMnemonic == "DW" || 
                                         upperMnemonic == "DS" || upperMnemonic == "END" ||
                                         upperMnemonic == "PUBLIC" || upperMnemonic == "EXTRN" ||
@@ -2124,19 +2093,10 @@ bool Parser::expandSourceWithMacrosImpl(const std::vector<std::string>& sourceLi
                     continue;
                 }
             }
-        }
         
-        // If in macro/rept/irp/irpc definition, accumulate body
-        if (inMacroDef || inReptDef || inIRPDef || inIRPCDef) {
-            currentBody.push_back(line);
-        } else {
-            // Normal line, pass through with source location
-            expandedLines.push_back(line);
-            SourceLocation loc;
-            loc.filename = currentFilename;
-            loc.lineNumber = currentLineNum;
-            sourceLocations.push_back(loc);
-        }
+        // Normal line - pass through with source location
+        // (Macro/REPT/IRP/IRPC definitions are now handled above and skip to endIndex)
+        addExpandedLine(expandedLines, sourceLocations, line, currentFilename, currentLineNum);
     }
     
     return true;
